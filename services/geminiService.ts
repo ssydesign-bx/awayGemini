@@ -5,16 +5,29 @@ import { ImageConfig, VideoConfig } from "../types";
 export class GeminiService {
   /**
    * Helper to create a new GoogleGenAI instance right before making an API call.
-   * This ensures it always uses the most up-to-date API key from the environment/dialog.
+   * This ensures it always uses the most up-to-date API key from the environment.
    */
   private static getClient() {
-    return new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+    // The API key must be obtained exclusively from the environment variable process.env.API_KEY.
+    const apiKey = process.env.API_KEY;
+    
+    if (!apiKey) {
+      throw new Error("API Key is missing. Please select an API key.");
+    }
+    
+    return new GoogleGenAI({ apiKey });
   }
 
+  // Updated chat method to pass history to ai.chats.create to maintain conversation context.
   static async chat(message: string, history: { role: string, content: string }[]) {
     const ai = this.getClient();
     const chat = ai.chats.create({
       model: 'gemini-3-pro-preview',
+      // Pass the conversation history converted to the format expected by the SDK.
+      history: history.map(h => ({
+        role: h.role as any,
+        parts: [{ text: h.content }]
+      })),
       config: {
         systemInstruction: "You are a professional creative director and assistant. Help the user brainstorm ideas for designs, copy, and creative projects.",
         tools: [{ googleSearch: {} }]
@@ -44,7 +57,6 @@ export class GeminiService {
       }
     });
 
-    // Iterate through all candidates and parts to find the image part, do not assume it is the first one.
     const candidates = response.candidates;
     if (candidates && candidates.length > 0) {
       for (const part of candidates[0].content.parts) {
@@ -89,8 +101,9 @@ export class GeminiService {
     const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
     if (!downloadLink) throw new Error("Video generation failed");
     
-    // Always append the API key when fetching from the video download link.
-    const response = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
+    // The response.body contains the MP4 bytes. You must append an API key when fetching from the download link.
+    const apiKey = process.env.API_KEY;
+    const response = await fetch(`${downloadLink}&key=${apiKey}`);
     const blob = await response.blob();
     return URL.createObjectURL(blob);
   }

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { AppMode, ChatSession, GeneratedAsset, Message } from './types';
 import Sidebar from './components/Sidebar';
@@ -10,6 +9,9 @@ import VideoGenerator from './components/VideoGenerator';
 const App: React.FC = () => {
   const [mode, setMode] = useState<AppMode>(AppMode.CHAT);
   const [isSidebarOpen, setSidebarOpen] = useState(true);
+  
+  // [핵심 변경] 사용자의 API 키를 저장하는 상태 추가
+  const [apiKey, setApiKey] = useState<string>('');
   const [hasApiKey, setHasApiKey] = useState(false);
   
   // Archiving states
@@ -26,13 +28,18 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const checkKey = async () => {
-      // Exclusively use window.aistudio to check for API key presence in the Studio environment.
+      // 1. 구글 AI Studio 내부 환경 체크
       if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
         const hasKey = await window.aistudio.hasSelectedApiKey();
         setHasApiKey(hasKey);
-      } else {
-        // Fallback check for process.env.API_KEY in other environments.
-        setHasApiKey(!!process.env.API_KEY);
+      } 
+      // 2. [변경] 방문자가 이전에 입력한 키가 브라우저에 있는지 확인
+      else {
+        const storedKey = localStorage.getItem('user_gemini_key');
+        if (storedKey) {
+          setApiKey(storedKey);
+          setHasApiKey(true);
+        }
       }
     };
     checkKey();
@@ -46,11 +53,20 @@ const App: React.FC = () => {
     localStorage.setItem('studio_assets', JSON.stringify(assetArchive));
   }, [assetArchive]);
 
+  // [핵심 변경] 키 입력 버튼을 눌렀을 때 동작
   const handleSelectKey = async () => {
     if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
       await window.aistudio.openSelectKey();
-      // To mitigate potential race conditions, assume the key selection was successful and proceed.
       setHasApiKey(true);
+    } else {
+      // [변경] 일반 웹사이트 접속자에게 입력창 띄우기
+      const userKey = window.prompt("Google Gemini API 키를 입력해주세요 (sk-...)");
+      if (userKey && userKey.trim().length > 0) {
+        setApiKey(userKey);
+        setHasApiKey(true);
+        localStorage.setItem('user_gemini_key', userKey); // 편의를 위해 저장
+        alert("API 키가 적용되었습니다.");
+      }
     }
   };
 
@@ -97,15 +113,32 @@ const App: React.FC = () => {
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
 
   const renderContent = () => {
+    // [핵심 변경] apiKey를 각 컴포넌트에 props로 전달 (에러가 나면 2번 단계 참조)
     switch (mode) {
       case AppMode.CHAT:
-        return <ChatAssistant session={activeSession} onUpdateMessages={updateActiveSession} />;
+        return <ChatAssistant 
+                  session={activeSession} 
+                  onUpdateMessages={updateActiveSession} 
+                  apiKey={apiKey} 
+                />;
       case AppMode.IMAGE:
-        return <ImageGenerator onKeyNeeded={handleSelectKey} hasKey={hasApiKey} archive={assetArchive.filter(a => a.type === 'image')} onNewAsset={archiveAsset} />;
+        return <ImageGenerator 
+                  onKeyNeeded={handleSelectKey} 
+                  hasKey={hasApiKey} 
+                  archive={assetArchive.filter(a => a.type === 'image')} 
+                  onNewAsset={archiveAsset} 
+                  apiKey={apiKey}
+                />;
       case AppMode.VIDEO:
-        return <VideoGenerator onKeyNeeded={handleSelectKey} hasKey={hasApiKey} archive={assetArchive.filter(a => a.type === 'video')} onNewAsset={archiveAsset} />;
+        return <VideoGenerator 
+                  onKeyNeeded={handleSelectKey} 
+                  hasKey={hasApiKey} 
+                  archive={assetArchive.filter(a => a.type === 'video')} 
+                  onNewAsset={archiveAsset} 
+                  apiKey={apiKey}
+                />;
       default:
-        return <ChatAssistant session={activeSession} onUpdateMessages={updateActiveSession} />;
+        return <ChatAssistant session={activeSession} onUpdateMessages={updateActiveSession} apiKey={apiKey} />;
     }
   };
 
