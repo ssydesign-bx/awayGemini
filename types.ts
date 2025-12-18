@@ -48,7 +48,7 @@ declare global {
   }
 
   interface Window {
-    // Removed readonly to align with environment definitions and used the global AIStudio type
-    aistudio: AIStudio;
+    // Fix: Restored the readonly modifier to match the environment's definition and resolve the "identical modifiers" error.
+    readonly aistudio: AIStudio;
   }
 }

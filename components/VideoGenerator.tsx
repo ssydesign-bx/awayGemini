@@ -76,7 +76,7 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ onKeyNeeded, hasKey, ar
                 <button
                   key={res}
                   onClick={() => setConfig(prev => ({ ...prev, resolution: res }))}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${config.resolution === res ? 'bg-white shadow-sm text-purple-600' : 'text-gray-500'}`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${config.resolution === res ? 'bg-white shadow-sm text-lime-600' : 'text-gray-500'}`}
                 >
                   {res}
                 </button>
@@ -87,7 +87,7 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ onKeyNeeded, hasKey, ar
                 <button
                   key={ratio}
                   onClick={() => setConfig(prev => ({ ...prev, aspectRatio: ratio }))}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${config.aspectRatio === ratio ? 'bg-white shadow-sm text-purple-600' : 'text-gray-500'}`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${config.aspectRatio === ratio ? 'bg-white shadow-sm text-lime-600' : 'text-gray-500'}`}
                 >
                   {ratio}
                 </button>
@@ -101,12 +101,12 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ onKeyNeeded, hasKey, ar
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="A cinematic drone flight over a volcano..."
-            className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-purple-500/10 transition-all resize-none h-20"
+            className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-lime-500/10 transition-all resize-none h-20"
           />
           <button 
             onClick={handleGenerate}
             disabled={!prompt.trim() || isLoading}
-            className="bg-purple-600 text-white px-8 rounded-xl font-bold hover:bg-purple-700 disabled:opacity-50 shadow-lg shadow-purple-500/20 transition-all flex flex-col items-center justify-center shrink-0 min-w-[140px]"
+            className="bg-lime-500 text-white px-8 rounded-xl font-bold hover:bg-lime-600 disabled:opacity-50 shadow-lg shadow-lime-500/20 transition-all flex flex-col items-center justify-center shrink-0 min-w-[140px]"
           >
             {isLoading ? (
               <div className="flex flex-col items-center">
@@ -132,7 +132,7 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ onKeyNeeded, hasKey, ar
                     onClick={() => downloadVideo(asset.url, `studio-vid-${asset.id}.mp4`)}
                     className="p-3 bg-white/90 hover:bg-white text-gray-900 rounded-2xl shadow-2xl transition-all hover:scale-110 flex items-center gap-2 font-bold text-sm"
                   >
-                    <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 text-lime-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                     </svg>
                     Download

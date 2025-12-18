@@ -1,5 +1,6 @@
+
 {
-  "name": "Creative Studio Pro",
+  "name": "SSYDESIGN Pro",
   "description": "A premium AI-powered creative suite for text, image, and video generation using the latest Gemini and Veo models.",
   "requestFramePermissions": [
     "camera",

@@ -26,8 +26,13 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const checkKey = async () => {
-      const hasKey = await window.aistudio.hasSelectedApiKey();
-      setHasApiKey(hasKey);
+      if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        setHasApiKey(hasKey);
+      } else {
+        // If not in AI Studio environment, assume we might have an API key from env
+        setHasApiKey(!!process.env.API_KEY);
+      }
     };
     checkKey();
   }, []);
@@ -41,8 +46,12 @@ const App: React.FC = () => {
   }, [assetArchive]);
 
   const handleSelectKey = async () => {
-    await window.aistudio.openSelectKey();
-    setHasApiKey(true);
+    if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
+      await window.aistudio.openSelectKey();
+      setHasApiKey(true);
+    } else {
+      alert("API Key selection is only available within the AI Studio environment. For Vercel deployments, ensure your API_KEY is set in Environment Variables.");
+    }
   };
 
   const createNewSession = () => {
@@ -60,7 +69,6 @@ const App: React.FC = () => {
   const updateActiveSession = (newMessages: Message[]) => {
     setSessions(prev => prev.map(s => {
       if (s.id === activeSessionId) {
-        // Update title based on first user message
         const firstUserMsg = newMessages.find(m => m.role === 'user');
         const newTitle = firstUserMsg ? (firstUserMsg.content.slice(0, 25) + (firstUserMsg.content.length > 25 ? '...' : '')) : s.title;
         return { ...s, messages: newMessages, updatedAt: Date.now(), title: newTitle };
