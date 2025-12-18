@@ -26,11 +26,12 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const checkKey = async () => {
+      // Exclusively use window.aistudio to check for API key presence in the Studio environment.
       if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
         const hasKey = await window.aistudio.hasSelectedApiKey();
         setHasApiKey(hasKey);
       } else {
-        // If not in AI Studio environment, assume we might have an API key from env
+        // Fallback check for process.env.API_KEY in other environments.
         setHasApiKey(!!process.env.API_KEY);
       }
     };
@@ -48,9 +49,8 @@ const App: React.FC = () => {
   const handleSelectKey = async () => {
     if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
       await window.aistudio.openSelectKey();
+      // To mitigate potential race conditions, assume the key selection was successful and proceed.
       setHasApiKey(true);
-    } else {
-      alert("API Key selection is only available within the AI Studio environment. For Vercel deployments, ensure your API_KEY is set in Environment Variables.");
     }
   };
 

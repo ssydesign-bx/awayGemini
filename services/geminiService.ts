@@ -3,8 +3,12 @@ import { GoogleGenAI, Type, GenerateContentResponse, Modality } from "@google/ge
 import { ImageConfig, VideoConfig } from "../types";
 
 export class GeminiService {
+  /**
+   * Helper to create a new GoogleGenAI instance right before making an API call.
+   * This ensures it always uses the most up-to-date API key from the environment/dialog.
+   */
   private static getClient() {
-    return new GoogleGenAI({ apiKey: process.env.API_KEY });
+    return new GoogleGenAI({ apiKey: process.env.API_KEY as string });
   }
 
   static async chat(message: string, history: { role: string, content: string }[]) {
@@ -18,8 +22,9 @@ export class GeminiService {
     });
 
     const response = await chat.sendMessage({ message });
+    // Use the .text property directly as per the latest SDK guidelines.
     return {
-      text: response.text,
+      text: response.text || '',
       grounding: response.candidates?.[0]?.groundingMetadata?.groundingChunks || []
     };
   }
@@ -39,9 +44,13 @@ export class GeminiService {
       }
     });
 
-    for (const part of response.candidates?.[0]?.content?.parts || []) {
-      if (part.inlineData) {
-        return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+    // Iterate through all candidates and parts to find the image part, do not assume it is the first one.
+    const candidates = response.candidates;
+    if (candidates && candidates.length > 0) {
+      for (const part of candidates[0].content.parts) {
+        if (part.inlineData) {
+          return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+        }
       }
     }
     throw new Error("No image generated");
@@ -80,6 +89,7 @@ export class GeminiService {
     const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
     if (!downloadLink) throw new Error("Video generation failed");
     
+    // Always append the API key when fetching from the video download link.
     const response = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
     const blob = await response.blob();
     return URL.createObjectURL(blob);

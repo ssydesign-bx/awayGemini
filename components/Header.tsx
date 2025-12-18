@@ -23,18 +23,22 @@ const Header: React.FC<HeaderProps> = ({ onSelectKey, hasKey }) => {
           Billing Guide
         </a>
         
-        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-black ${
-          hasKey ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-black transition-all ${
+          hasKey ? 'bg-lime-50 text-lime-700' : 'bg-amber-50 text-amber-700'
         }`}>
-          <div className={`w-2 h-2 rounded-full ${hasKey ? 'bg-green-500' : 'bg-amber-500 animate-pulse'}`}></div>
-          {hasKey ? 'PRO KEY LINKED' : 'BASIC MODE'}
+          <div className={`w-2 h-2 rounded-full ${hasKey ? 'bg-lime-500 shadow-[0_0_8px_rgba(132,204,22,0.6)]' : 'bg-amber-500 animate-pulse'}`}></div>
+          {hasKey ? 'PRO ENGINE ACTIVE' : 'BASIC MODE'}
         </div>
         
         <button 
           onClick={onSelectKey}
-          className="bg-gray-900 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-gray-800 transition-colors shadow-lg shadow-gray-200"
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-lg ${
+            hasKey 
+              ? 'bg-white border border-lime-200 text-lime-600 hover:bg-lime-50 shadow-lime-100' 
+              : 'bg-gray-900 text-white hover:bg-gray-800 shadow-gray-200'
+          }`}
         >
-          {hasKey ? 'UPDATE KEY' : 'LINK PRO KEY'}
+          {hasKey ? 'KEY LINKED' : 'LINK PRO KEY'}
         </button>
       </div>
     </header>
