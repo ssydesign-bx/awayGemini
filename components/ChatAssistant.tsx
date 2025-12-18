@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { GoogleGenerativeAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { ChatSession, Message } from '../types';
 
 interface ChatAssistantProps {
   session: ChatSession;
   onUpdateMessages: (messages: Message[]) => void;
-  apiKey?: string; // App.tsx에서 넘겨준 키를 받음
+  apiKey?: string;
 }
 
 const ChatAssistant: React.FC<ChatAssistantProps> = ({ session, onUpdateMessages, apiKey }) => {
@@ -25,7 +25,6 @@ const ChatAssistant: React.FC<ChatAssistantProps> = ({ session, onUpdateMessages
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
-    // [중요] 키가 없는 경우 차단
     if (!apiKey && !process.env.GEMINI_API_KEY) {
       alert("API 키가 필요합니다. 우측 상단의 'Select API Key' 버튼을 눌러 키를 입력해주세요.");
       return;
@@ -44,17 +43,18 @@ const ChatAssistant: React.FC<ChatAssistantProps> = ({ session, onUpdateMessages
     setIsLoading(true);
 
     try {
-      // [핵심] 전달받은 apiKey를 우선 사용
       const client = new GoogleGenerativeAI(apiKey || process.env.GEMINI_API_KEY || '');
+      const model = client.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
       
-      const response = await client.generativeModel("gemini-2.0-flash-exp").generateContent({
-        contents: newMessages.map(m => ({
+      const chat = model.startChat({
+        history: newMessages.slice(0, -1).map(m => ({
           role: m.role === 'user' ? 'user' : 'model',
           parts: [{ text: m.content }]
         }))
       });
 
-      const text = response.response.candidates?.[0]?.content?.parts?.[0]?.text || "응답을 생성할 수 없습니다.";
+      const result = await chat.sendMessage(userMessage.content);
+      const text = result.response.text();
 
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -83,9 +83,6 @@ const ChatAssistant: React.FC<ChatAssistantProps> = ({ session, onUpdateMessages
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
         {session.messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-2">
-            <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-            </svg>
             <p>대화를 시작해보세요</p>
           </div>
         ) : (
@@ -103,12 +100,8 @@ const ChatAssistant: React.FC<ChatAssistantProps> = ({ session, onUpdateMessages
         )}
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-none px-4 py-3 shadow-sm">
-              <div className="flex space-x-2">
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-              </div>
+            <div className="bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-sm">
+              ...
             </div>
           </div>
         )}
@@ -123,16 +116,10 @@ const ChatAssistant: React.FC<ChatAssistantProps> = ({ session, onUpdateMessages
             onChange={(e) => setInput(e.target.value)}
             placeholder={apiKey ? "메시지를 입력하세요..." : "API 키를 먼저 입력해주세요"}
             disabled={isLoading}
-            className="w-full pl-4 pr-12 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            className="w-full pl-4 pr-12 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <button
-            type="submit"
-            disabled={!input.trim() || isLoading}
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-blue-600 disabled:text-gray-300 hover:bg-blue-50 rounded-lg transition-colors"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-            </svg>
+          <button type="submit" disabled={!input.trim() || isLoading} className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-blue-600">
+            전송
           </button>
         </form>
       </div>
