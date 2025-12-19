@@ -3,58 +3,76 @@ import { GoogleGenAI, Type, GenerateContentResponse, Modality } from "@google/ge
 import { ImageConfig, VideoConfig } from "../types";
 
 export class GeminiService {
-  /**
-   * Resolves the API key exclusively from the environment variable as per guidelines.
-   * The variable is expected to be pre-configured.
-   */
-  private static getResolvedKey(): string {
-    const apiKey = process.env.API_KEY;
-    
-    if (!apiKey) {
-      throw new Error("API Key is missing. Please ensure you have selected a valid API key in AI Studio.");
-    }
-    return apiKey;
-  }
-
+  // Always create a new GoogleGenAI instance right before making an API call to ensure it uses the most up-to-date API key.
   private static getClient() {
-    return new GoogleGenAI({ apiKey: this.getResolvedKey() });
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+      throw new Error("API Key is missing. Please select an API key using the 'SELECT KEY' button.");
+    }
+    return new GoogleGenAI({ apiKey });
   }
 
-  static async chat(message: string, history: { role: string, content: string }[]) {
+  static async chat(message: string, history: { role: string, content: string }[], imageData?: string) {
     const ai = this.getClient();
-    const chat = ai.chats.create({
-      model: 'gemini-3-pro-preview',
-      history: history.map(h => ({
-        role: h.role as any,
-        parts: [{ text: h.content }]
-      })),
+    // Complex text tasks use gemini-3-pro-preview.
+    const model = 'gemini-3-pro-preview';
+    
+    const parts: any[] = [{ text: message }];
+    if (imageData) {
+      parts.push({
+        inlineData: {
+          data: imageData.split(',')[1],
+          mimeType: imageData.split(';')[0].split(':')[1]
+        }
+      });
+    }
+
+    const response = await ai.models.generateContent({
+      model,
+      contents: [
+        ...history.map(h => ({
+          // Map 'assistant' role to 'model' as required by the Gemini API.
+          role: h.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: h.content }]
+        })),
+        { role: 'user', parts }
+      ],
       config: {
-        systemInstruction: "You are a professional creative director and assistant. Help the user brainstorm ideas for designs, copy, and creative projects.",
+        systemInstruction: "You are a professional creative director. You can see images and help with design analysis, copy, and creative projects.",
         tools: [{ googleSearch: {} }]
       }
     });
 
-    const response = await chat.sendMessage({ message });
     return {
       text: response.text || '',
       grounding: response.candidates?.[0]?.groundingMetadata?.groundingChunks || []
     };
   }
 
-  static async generateImage(prompt: string, config: ImageConfig) {
+  static async generateImage(prompt: string, config: ImageConfig, imageData?: string) {
     const ai = this.getClient();
+    // Use gemini-3-pro-image-preview for high-quality generation; otherwise gemini-2.5-flash-image.
     const model = config.quality === 'high' ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
     
+    const parts: any[] = [{ text: prompt }];
+    if (imageData) {
+      parts.push({
+        inlineData: {
+          data: imageData.split(',')[1],
+          mimeType: imageData.split(';')[0].split(':')[1]
+        }
+      });
+    }
+
     const response = await ai.models.generateContent({
       model,
-      contents: { parts: [{ text: prompt }] },
+      contents: { parts },
       config: {
         imageConfig: {
           aspectRatio: config.aspectRatio,
           ...(config.quality === 'high' && { imageSize: config.imageSize || '1K' })
         },
-        // Google Search is only available for gemini-3-pro-image-preview.
-        // Changed google_search to googleSearch as it is the correct type in ToolUnion.
+        // Google Search tool is only available for gemini-3-pro-image-preview.
         ...(config.quality === 'high' && { tools: [{ googleSearch: {} }] })
       }
     });
@@ -62,23 +80,19 @@ export class GeminiService {
     const candidates = response.candidates;
     if (candidates && candidates.length > 0) {
       for (const part of candidates[0].content.parts) {
-        // Find the image part, do not assume it is the first part.
         if (part.inlineData) {
-          const base64EncodeString: string = part.inlineData.data;
-          return `data:image/png;base64,${base64EncodeString}`;
-        } else if (part.text) {
-          console.debug(part.text);
+          return `data:image/png;base64,${part.inlineData.data}`;
         }
       }
     }
-    throw new Error("No image generated");
+    throw new Error("No image part returned from model.");
   }
 
-  static async generateVideo(prompt: string, config: VideoConfig, onProgress?: (msg: string) => void) {
+  static async generateVideo(prompt: string, config: VideoConfig, imageData?: string, onProgress?: (msg: string) => void) {
     const ai = this.getClient();
-    onProgress?.("Connecting to Veo 3.1 engine...");
+    onProgress?.("Initializing Veo 3.1 engine...");
     
-    let operation = await ai.models.generateVideos({
+    const videoParams: any = {
       model: 'veo-3.1-fast-generate-preview',
       prompt,
       config: {
@@ -86,15 +100,18 @@ export class GeminiService {
         resolution: config.resolution,
         aspectRatio: config.aspectRatio
       }
-    });
+    };
 
-    const messages = [
-      "Analyzing prompt dynamics...",
-      "Generating keyframes...",
-      "Applying temporal consistency...",
-      "Synthesizing high-res textures...",
-      "Encoding final video stream..."
-    ];
+    if (imageData) {
+      videoParams.image = {
+        imageBytes: imageData.split(',')[1],
+        mimeType: imageData.split(';')[0].split(':')[1]
+      };
+    }
+
+    let operation = await ai.models.generateVideos(videoParams);
+
+    const messages = ["Refining physics...", "Temporal synthesis...", "Lighting pass...", "Finalizing bytes..."];
     let msgIdx = 0;
 
     while (!operation.done) {
@@ -107,8 +124,8 @@ export class GeminiService {
     const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
     if (!downloadLink) throw new Error("Video generation failed");
     
-    const apiKey = this.getResolvedKey();
-    const response = await fetch(`${downloadLink}&key=${apiKey}`);
+    // Append API key when fetching from the download link as per guidelines.
+    const response = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
     const blob = await response.blob();
     return URL.createObjectURL(blob);
   }
