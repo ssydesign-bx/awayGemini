@@ -39,10 +39,12 @@ const ImageGenerator: React.FC<ImageGeneratorProps> = ({ onKeyNeeded, hasKey, ar
   };
 
   const handleGenerate = async () => {
-    if (config.quality === 'high' && !hasKey) {
+    // API 키가 없는 경우 버튼 클릭 시 키 선택 유도
+    if (!hasKey) {
       onKeyNeeded();
       return;
     }
+    
     if (!prompt.trim() || isLoading) return;
     setIsLoading(true);
     try {
@@ -112,8 +114,12 @@ const ImageGenerator: React.FC<ImageGeneratorProps> = ({ onKeyNeeded, hasKey, ar
               </button>
               <button 
                 onClick={handleGenerate}
-                disabled={!prompt.trim() || isLoading}
-                className="flex-1 bg-lime-500 text-white py-2 rounded-xl font-bold hover:bg-lime-600 disabled:opacity-50 transition-all shadow-lg"
+                disabled={isLoading}
+                className={`flex-1 py-2 rounded-xl font-bold transition-all shadow-lg ${
+                  !prompt.trim() && !attachedImage
+                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    : 'bg-lime-500 text-white hover:bg-lime-600 active:scale-95'
+                }`}
               >
                 {isLoading ? "Generating..." : attachedImage ? "Apply Edits" : "Generate Image"}
               </button>

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { AppMode, ChatSession, GeneratedAsset, Message } from './types';
 import Sidebar from './components/Sidebar';
@@ -24,16 +25,19 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const checkKey = async () => {
-      // Use the native AI Studio API to check for key selection
+      // AI Studio 환경 확인
       if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
         const hasKey = await window.aistudio.hasSelectedApiKey();
         setHasApiKey(hasKey);
       } else {
-        // Fallback to environment variable if window.aistudio is not present
+        // Vercel 등 외부 환경에서는 환경 변수 확인
         setHasApiKey(!!process.env.API_KEY);
       }
     };
     checkKey();
+    
+    // 외부 환경에서 주기적으로 키 상태를 확인하기 위해 이벤트 리스너 또는 타이머를 고려할 수 있으나
+    // 여기서는 초기 로드 시 확인에 집중합니다.
   }, []);
 
   useEffect(() => {
@@ -45,13 +49,17 @@ const App: React.FC = () => {
   }, [assetArchive]);
 
   const handleSelectKey = async () => {
-    // Strictly use the native selector for Veo and Pro model access
     if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
-      await window.aistudio.openSelectKey();
-      // Proceed assuming key selection was successful to mitigate race conditions
-      setHasApiKey(true);
+      try {
+        await window.aistudio.openSelectKey();
+        // 레이스 컨디션 방지를 위해 즉시 성공으로 가정
+        setHasApiKey(true);
+      } catch (error) {
+        console.error("Key selection failed:", error);
+      }
     } else {
-      console.warn("Key selection is only available in the AI Studio environment.");
+      // Vercel 등 외부 배포 환경일 경우 사용자에게 안내
+      alert("Note: External key selection is only available within the Google AI Studio environment. On Vercel, please set your 'API_KEY' in the Vercel Project Settings -> Environment Variables.");
     }
   };
 

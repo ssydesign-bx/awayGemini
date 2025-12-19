@@ -1,16 +1,19 @@
+
 import { GoogleGenAI, Type, GenerateContentResponse, Modality } from "@google/genai";
 import { ImageConfig, VideoConfig } from "../types";
 
 export class GeminiService {
   private static getClient() {
-    // The API key must be obtained exclusively from the environment variable process.env.API_KEY.
-    // Create a new instance right before making an API call to ensure it uses the most up-to-date key.
-    return new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+      throw new Error("API_KEY is not configured. Please ensure it is set in your environment variables or selected in AI Studio.");
+    }
+    // 호출 직전에 새로운 인스턴스를 생성하여 최신 키가 반영되도록 함
+    return new GoogleGenAI({ apiKey });
   }
 
   static async chat(message: string, history: { role: string, content: string }[], imageData?: string) {
     const ai = this.getClient();
-    // Complex Text Tasks use gemini-3-pro-preview
     const model = 'gemini-3-pro-preview';
     
     const parts: any[] = [{ text: message }];
@@ -23,30 +26,36 @@ export class GeminiService {
       });
     }
 
-    const response = await ai.models.generateContent({
-      model,
-      contents: [
-        ...history.map(h => ({
-          role: h.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: h.content }]
-        })),
-        { role: 'user', parts }
-      ],
-      config: {
-        systemInstruction: "You are a professional creative director and assistant. Help the user brainstorm ideas, analyze designs, and provide technical guidance.",
-        tools: [{ googleSearch: {} }]
-      }
-    });
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: [
+          ...history.map(h => ({
+            role: h.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: h.content }]
+          })),
+          { role: 'user', parts }
+        ],
+        config: {
+          systemInstruction: "You are a professional creative director and assistant. Help the user brainstorm ideas, analyze designs, and provide technical guidance.",
+          tools: [{ googleSearch: {} }]
+        }
+      });
 
-    return {
-      text: response.text || '',
-      grounding: response.candidates?.[0]?.groundingMetadata?.groundingChunks || []
-    };
+      return {
+        text: response.text || '',
+        grounding: response.candidates?.[0]?.groundingMetadata?.groundingChunks || []
+      };
+    } catch (error: any) {
+      if (error.message?.includes("Requested entity was not found")) {
+        throw new Error("API Key is invalid or not found. Please re-select your key.");
+      }
+      throw error;
+    }
   }
 
   static async generateImage(prompt: string, config: ImageConfig, imageData?: string) {
     const ai = this.getClient();
-    // Use gemini-3-pro-image-preview for high-quality or gemini-2.5-flash-image for standard tasks
     const model = config.quality === 'high' ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
     
     const parts: any[] = [{ text: prompt }];
@@ -59,28 +68,35 @@ export class GeminiService {
       });
     }
 
-    const response = await ai.models.generateContent({
-      model,
-      contents: { parts },
-      config: {
-        imageConfig: {
-          aspectRatio: config.aspectRatio,
-          ...(config.quality === 'high' && { imageSize: config.imageSize || '1K' })
-        },
-        // Google Search tool is only available for gemini-3-pro-image-preview
-        ...(config.quality === 'high' && { tools: [{ googleSearch: {} }] })
-      }
-    });
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: { parts },
+        config: {
+          imageConfig: {
+            aspectRatio: config.aspectRatio,
+            ...(config.quality === 'high' && { imageSize: config.imageSize || '1K' })
+          },
+          // Pro 모델에서만 googleSearch 도구 사용 가능
+          ...(config.quality === 'high' && { tools: [{ googleSearch: {} }] })
+        }
+      });
 
-    const candidates = response.candidates;
-    if (candidates && candidates.length > 0) {
-      for (const part of candidates[0].content.parts) {
-        if (part.inlineData) {
-          return `data:image/png;base64,${part.inlineData.data}`;
+      const candidates = response.candidates;
+      if (candidates && candidates.length > 0) {
+        for (const part of candidates[0].content.parts) {
+          if (part.inlineData) {
+            return `data:image/png;base64,${part.inlineData.data}`;
+          }
         }
       }
+      throw new Error("No image data returned from Gemini.");
+    } catch (error: any) {
+      if (error.message?.includes("Requested entity was not found")) {
+        throw new Error("API Key issue: Please re-select your key via the Header button.");
+      }
+      throw error;
     }
-    throw new Error("No image data returned from Gemini.");
   }
 
   static async generateVideo(prompt: string, config: VideoConfig, imageData?: string, onProgress?: (msg: string) => void) {
@@ -104,23 +120,30 @@ export class GeminiService {
       };
     }
 
-    let operation = await ai.models.generateVideos(videoParams);
+    try {
+      let operation = await ai.models.generateVideos(videoParams);
 
-    const messages = ["Refining physics...", "Temporal synthesis...", "Lighting pass...", "Finalizing bytes..."];
-    let msgIdx = 0;
+      const messages = ["Refining physics...", "Temporal synthesis...", "Lighting pass...", "Finalizing bytes..."];
+      let msgIdx = 0;
 
-    while (!operation.done) {
-      onProgress?.(messages[msgIdx % messages.length]);
-      msgIdx++;
-      await new Promise(resolve => setTimeout(resolve, 10000));
-      operation = await ai.operations.getVideosOperation({ operation: operation });
+      while (!operation.done) {
+        onProgress?.(messages[msgIdx % messages.length]);
+        msgIdx++;
+        await new Promise(resolve => setTimeout(resolve, 10000));
+        operation = await ai.operations.getVideosOperation({ operation: operation });
+      }
+
+      const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
+      if (!downloadLink) throw new Error("Video generation failed");
+      
+      const response = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
+      const blob = await response.blob();
+      return URL.createObjectURL(blob);
+    } catch (error: any) {
+      if (error.message?.includes("Requested entity was not found")) {
+        throw new Error("API Key issue during video generation. Please re-select your key.");
+      }
+      throw error;
     }
-
-    const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
-    if (!downloadLink) throw new Error("Video generation failed");
-    
-    const response = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
-    const blob = await response.blob();
-    return URL.createObjectURL(blob);
   }
 }
