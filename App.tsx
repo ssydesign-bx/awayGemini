@@ -6,11 +6,13 @@ import Header from './components/Header';
 import ChatAssistant from './components/ChatAssistant';
 import ImageGenerator from './components/ImageGenerator';
 import VideoGenerator from './components/VideoGenerator';
+import KeyModal from './components/KeyModal';
 
 const App: React.FC = () => {
   const [mode, setMode] = useState<AppMode>(AppMode.CHAT);
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [hasApiKey, setHasApiKey] = useState(false);
+  const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
   
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
     const saved = localStorage.getItem('studio_sessions');
@@ -23,100 +25,75 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : [];
   });
 
-  useEffect(() => {
-    const checkKey = async () => {
-      // AI Studio 환경 확인
-      if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+  const checkKeyStatus = async () => {
+    const savedKey = localStorage.getItem('ssy_pro_user_key');
+    if (savedKey) {
+      setHasApiKey(true);
+      return;
+    }
+
+    // AI Studio 네이티브 체크
+    if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+      try {
         const hasKey = await window.aistudio.hasSelectedApiKey();
         setHasApiKey(hasKey);
-      } else {
-        // Vercel 등 외부 환경에서는 환경 변수 확인
+      } catch {
         setHasApiKey(!!process.env.API_KEY);
       }
-    };
-    checkKey();
-    
-    // 외부 환경에서 주기적으로 키 상태를 확인하기 위해 이벤트 리스너 또는 타이머를 고려할 수 있으나
-    // 여기서는 초기 로드 시 확인에 집중합니다.
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem('studio_sessions', JSON.stringify(sessions));
-  }, [sessions]);
-
-  useEffect(() => {
-    localStorage.setItem('studio_assets', JSON.stringify(assetArchive));
-  }, [assetArchive]);
-
-  const handleSelectKey = async () => {
-    if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
-      try {
-        await window.aistudio.openSelectKey();
-        // 레이스 컨디션 방지를 위해 즉시 성공으로 가정
-        setHasApiKey(true);
-      } catch (error) {
-        console.error("Key selection failed:", error);
-      }
     } else {
-      // Vercel 등 외부 배포 환경일 경우 사용자에게 안내
-      alert("Note: External key selection is only available within the Google AI Studio environment. On Vercel, please set your 'API_KEY' in the Vercel Project Settings -> Environment Variables.");
+      setHasApiKey(!!process.env.API_KEY);
     }
   };
 
-  const createNewSession = () => {
-    const newSession: ChatSession = {
-      id: Date.now().toString(),
-      title: 'New Conversation',
-      messages: [],
-      updatedAt: Date.now()
-    };
-    setSessions([newSession, ...sessions]);
-    setActiveSessionId(newSession.id);
-    setMode(AppMode.CHAT);
+  useEffect(() => {
+    checkKeyStatus();
+  }, []);
+
+  const handleSelectKey = async () => {
+    // 엄격한 체크: AI Studio 내부인가?
+    const isAiStudioEnv = window.aistudio && 
+                         typeof window.aistudio.openSelectKey === 'function' &&
+                         window.location.hostname.includes('google.com');
+
+    if (isAiStudioEnv) {
+      try {
+        await window.aistudio!.openSelectKey();
+        setHasApiKey(true);
+      } catch (error) {
+        setIsKeyModalOpen(true);
+      }
+    } else {
+      // Vercel 등 외부 환경에서는 무조건 자체 모달
+      setIsKeyModalOpen(true);
+    }
+  };
+
+  const handleSaveCustomKey = (key: string) => {
+    localStorage.setItem('ssy_pro_user_key', key);
+    setHasApiKey(true);
+    setIsKeyModalOpen(false);
+    // 즉시 적용을 위해 페이지를 새로고침하거나 상태를 강제 업데이트 할 수 있습니다.
+  };
+
+  const handleError = (err: any) => {
+    if (err.message === "PERMISSION_DENIED" || err.message === "AUTH_REQUIRED") {
+      setHasApiKey(false);
+      setIsKeyModalOpen(true);
+    } else {
+      alert("Error: " + err.message);
+    }
   };
 
   const updateActiveSession = (newMessages: Message[]) => {
     setSessions(prev => prev.map(s => {
       if (s.id === activeSessionId) {
-        const firstUserMsg = newMessages.find(m => m.role === 'user');
-        const newTitle = firstUserMsg ? (firstUserMsg.content.slice(0, 25) + (firstUserMsg.content.length > 25 ? '...' : '')) : s.title;
-        return { ...s, messages: newMessages, updatedAt: Date.now(), title: newTitle };
+        return { ...s, messages: newMessages, updatedAt: Date.now() };
       }
       return s;
     }));
   };
 
-  const deleteSession = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const newSessions = sessions.filter(s => s.id !== id);
-    if (newSessions.length === 0) {
-      const defaultS = { id: 'default', title: 'New Conversation', messages: [], updatedAt: Date.now() };
-      setSessions([defaultS]);
-      setActiveSessionId('default');
-    } else {
-      setSessions(newSessions);
-      if (activeSessionId === id) setActiveSessionId(newSessions[0].id);
-    }
-  };
-
-  const archiveAsset = (asset: GeneratedAsset) => {
-    setAssetArchive(prev => [asset, ...prev]);
-  };
-
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
-
-  const renderContent = () => {
-    switch (mode) {
-      case AppMode.CHAT:
-        return <ChatAssistant session={activeSession} onUpdateMessages={updateActiveSession} />;
-      case AppMode.IMAGE:
-        return <ImageGenerator onKeyNeeded={handleSelectKey} hasKey={hasApiKey} archive={assetArchive.filter(a => a.type === 'image')} onNewAsset={archiveAsset} />;
-      case AppMode.VIDEO:
-        return <VideoGenerator onKeyNeeded={handleSelectKey} hasKey={hasApiKey} archive={assetArchive.filter(a => a.type === 'video')} onNewAsset={archiveAsset} />;
-      default:
-        return <ChatAssistant session={activeSession} onUpdateMessages={updateActiveSession} />;
-    }
-  };
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50 text-gray-900">
@@ -128,17 +105,32 @@ const App: React.FC = () => {
         sessions={sessions}
         activeSessionId={activeSessionId}
         onSelectSession={(id) => { setActiveSessionId(id); setMode(AppMode.CHAT); }}
-        onNewChat={createNewSession}
-        onDeleteSession={deleteSession}
+        onNewChat={() => {
+          const newS = { id: Date.now().toString(), title: 'New Chat', messages: [], updatedAt: Date.now() };
+          setSessions([newS, ...sessions]);
+          setActiveSessionId(newS.id);
+        }}
+        onDeleteSession={(id, e) => {
+          e.stopPropagation();
+          setSessions(sessions.filter(s => s.id !== id));
+        }}
       />
       <div className="flex flex-col flex-1 overflow-hidden relative">
         <Header onSelectKey={handleSelectKey} hasKey={hasApiKey} />
         <main className="flex-1 overflow-y-auto p-4 md:p-8">
           <div className="max-w-7xl mx-auto h-full">
-            {renderContent()}
+            {mode === AppMode.CHAT && <ChatAssistant session={activeSession} onUpdateMessages={updateActiveSession} />}
+            {mode === AppMode.IMAGE && <ImageGenerator onKeyNeeded={handleSelectKey} hasKey={hasApiKey} archive={assetArchive.filter(a => a.type === 'image')} onNewAsset={(a) => setAssetArchive([a, ...assetArchive])} />}
+            {mode === AppMode.VIDEO && <VideoGenerator onKeyNeeded={handleSelectKey} hasKey={hasApiKey} archive={assetArchive.filter(a => a.type === 'video')} onNewAsset={(a) => setAssetArchive([a, ...assetArchive])} />}
           </div>
         </main>
       </div>
+
+      <KeyModal 
+        isOpen={isKeyModalOpen} 
+        onClose={() => setIsKeyModalOpen(false)} 
+        onSave={handleSaveCustomKey} 
+      />
     </div>
   );
 };

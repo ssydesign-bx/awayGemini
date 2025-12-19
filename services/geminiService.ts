@@ -3,13 +3,18 @@ import { GoogleGenAI, Type, GenerateContentResponse, Modality } from "@google/ge
 import { ImageConfig, VideoConfig } from "../types";
 
 export class GeminiService {
+  private static getResolvedKey(): string {
+    const savedKey = localStorage.getItem('ssy_pro_user_key');
+    if (savedKey) return savedKey;
+
+    const envKey = process.env.API_KEY;
+    if (envKey) return envKey;
+
+    throw new Error("AUTH_REQUIRED");
+  }
+
   private static getClient() {
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) {
-      throw new Error("API_KEY is not configured. Please ensure it is set in your environment variables or selected in AI Studio.");
-    }
-    // 호출 직전에 새로운 인스턴스를 생성하여 최신 키가 반영되도록 함
-    return new GoogleGenAI({ apiKey });
+    return new GoogleGenAI({ apiKey: this.getResolvedKey() });
   }
 
   static async chat(message: string, history: { role: string, content: string }[], imageData?: string) {
@@ -37,7 +42,7 @@ export class GeminiService {
           { role: 'user', parts }
         ],
         config: {
-          systemInstruction: "You are a professional creative director and assistant. Help the user brainstorm ideas, analyze designs, and provide technical guidance.",
+          systemInstruction: "You are a professional creative director. Help the user brainstorm ideas.",
           tools: [{ googleSearch: {} }]
         }
       });
@@ -47,8 +52,9 @@ export class GeminiService {
         grounding: response.candidates?.[0]?.groundingMetadata?.groundingChunks || []
       };
     } catch (error: any) {
-      if (error.message?.includes("Requested entity was not found")) {
-        throw new Error("API Key is invalid or not found. Please re-select your key.");
+      if (error.message?.toLowerCase().includes("permission") || error.message?.includes("403")) {
+        localStorage.removeItem('ssy_pro_user_key');
+        throw new Error("PERMISSION_DENIED");
       }
       throw error;
     }
@@ -56,6 +62,7 @@ export class GeminiService {
 
   static async generateImage(prompt: string, config: ImageConfig, imageData?: string) {
     const ai = this.getClient();
+    // Pro 모델은 권한이 엄격하므로 에러 발생 가능성이 높음
     const model = config.quality === 'high' ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
     
     const parts: any[] = [{ text: prompt }];
@@ -77,7 +84,6 @@ export class GeminiService {
             aspectRatio: config.aspectRatio,
             ...(config.quality === 'high' && { imageSize: config.imageSize || '1K' })
           },
-          // Pro 모델에서만 googleSearch 도구 사용 가능
           ...(config.quality === 'high' && { tools: [{ googleSearch: {} }] })
         }
       });
@@ -90,10 +96,12 @@ export class GeminiService {
           }
         }
       }
-      throw new Error("No image data returned from Gemini.");
+      throw new Error("NO_IMAGE_DATA");
     } catch (error: any) {
-      if (error.message?.includes("Requested entity was not found")) {
-        throw new Error("API Key issue: Please re-select your key via the Header button.");
+      // 권한 없음 에러 발생 시 키를 삭제하여 재입력 유도
+      if (error.message?.toLowerCase().includes("permission") || error.message?.includes("403")) {
+        localStorage.removeItem('ssy_pro_user_key');
+        throw new Error("PERMISSION_DENIED");
       }
       throw error;
     }
@@ -122,26 +130,22 @@ export class GeminiService {
 
     try {
       let operation = await ai.models.generateVideos(videoParams);
-
-      const messages = ["Refining physics...", "Temporal synthesis...", "Lighting pass...", "Finalizing bytes..."];
-      let msgIdx = 0;
-
       while (!operation.done) {
-        onProgress?.(messages[msgIdx % messages.length]);
-        msgIdx++;
+        onProgress?.("Generating temporal frames...");
         await new Promise(resolve => setTimeout(resolve, 10000));
         operation = await ai.operations.getVideosOperation({ operation: operation });
       }
 
       const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
-      if (!downloadLink) throw new Error("Video generation failed");
+      if (!downloadLink) throw new Error("VIDEO_FAILED");
       
-      const response = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
+      const response = await fetch(`${downloadLink}&key=${this.getResolvedKey()}`);
       const blob = await response.blob();
       return URL.createObjectURL(blob);
     } catch (error: any) {
-      if (error.message?.includes("Requested entity was not found")) {
-        throw new Error("API Key issue during video generation. Please re-select your key.");
+      if (error.message?.toLowerCase().includes("permission") || error.message?.includes("403")) {
+        localStorage.removeItem('ssy_pro_user_key');
+        throw new Error("PERMISSION_DENIED");
       }
       throw error;
     }
