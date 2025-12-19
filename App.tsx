@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { AppMode, ChatSession, GeneratedAsset, Message } from './types';
 import Sidebar from './components/Sidebar';
@@ -12,7 +11,6 @@ const App: React.FC = () => {
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [hasApiKey, setHasApiKey] = useState(false);
   
-  // Persistence for sessions and generated assets
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
     const saved = localStorage.getItem('studio_sessions');
     return saved ? JSON.parse(saved) : [{ id: 'default', title: 'New Conversation', messages: [], updatedAt: Date.now() }];
@@ -26,12 +24,12 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const checkKey = async () => {
-      // Check whether an API key has been selected using AI Studio native API
+      // Use the native AI Studio API to check for key selection
       if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
         const hasKey = await window.aistudio.hasSelectedApiKey();
         setHasApiKey(hasKey);
       } else {
-        // Fallback check for environment variable
+        // Fallback to environment variable if window.aistudio is not present
         setHasApiKey(!!process.env.API_KEY);
       }
     };
@@ -47,12 +45,14 @@ const App: React.FC = () => {
   }, [assetArchive]);
 
   const handleSelectKey = async () => {
-    // Open the native AI Studio key selection dialog
+    // Strictly use the native selector for Veo and Pro model access
     if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
       await window.aistudio.openSelectKey();
-      // To prevent race conditions, assume the key selection was successful and update state
+      // Proceed assuming key selection was successful to mitigate race conditions
       setHasApiKey(true);
-    } 
+    } else {
+      console.warn("Key selection is only available in the AI Studio environment.");
+    }
   };
 
   const createNewSession = () => {

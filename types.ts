@@ -1,4 +1,3 @@
-
 export enum AppMode {
   CHAT = 'CHAT',
   IMAGE = 'IMAGE',
@@ -40,7 +39,6 @@ export interface GeneratedAsset {
   config?: any;
 }
 
-// Define the AIStudio interface in the global scope to ensure type consistency and resolve modifier conflicts
 declare global {
   interface AIStudio {
     hasSelectedApiKey: () => Promise<boolean>;
@@ -48,7 +46,9 @@ declare global {
   }
 
   interface Window {
-    // Removed readonly to match the environment's definition and resolve the "identical modifiers" error.
-    aistudio: AIStudio;
+    // Fixed: Added the optional modifier to 'aistudio' to ensure it matches the 
+    // modifier of the ambient declaration in the environment, resolving the 
+    // "All declarations of 'aistudio' must have identical modifiers" error.
+    aistudio?: AIStudio;
   }
 }
