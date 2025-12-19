@@ -4,26 +4,26 @@ import { ImageConfig, VideoConfig } from "../types";
 
 export class GeminiService {
   /**
-   * Helper to create a new GoogleGenAI instance right before making an API call.
-   * This ensures it always uses the most up-to-date API key from the environment.
+   * Resolves the API key exclusively from the environment variable as per guidelines.
+   * Do not use localStorage or prompt the user for the key string directly.
    */
-  private static getClient() {
-    // The API key must be obtained exclusively from the environment variable process.env.API_KEY.
+  private static getResolvedKey(): string {
     const apiKey = process.env.API_KEY;
     
     if (!apiKey) {
-      throw new Error("API Key is missing. Please select an API key.");
+      throw new Error("API Key is missing. Please click 'LINK PRO KEY' to select an API key from your paid project.");
     }
-    
-    return new GoogleGenAI({ apiKey });
+    return apiKey;
   }
 
-  // Updated chat method to pass history to ai.chats.create to maintain conversation context.
+  private static getClient() {
+    return new GoogleGenAI({ apiKey: this.getResolvedKey() });
+  }
+
   static async chat(message: string, history: { role: string, content: string }[]) {
     const ai = this.getClient();
     const chat = ai.chats.create({
       model: 'gemini-3-pro-preview',
-      // Pass the conversation history converted to the format expected by the SDK.
       history: history.map(h => ({
         role: h.role as any,
         parts: [{ text: h.content }]
@@ -35,7 +35,6 @@ export class GeminiService {
     });
 
     const response = await chat.sendMessage({ message });
-    // Use the .text property directly as per the latest SDK guidelines.
     return {
       text: response.text || '',
       grounding: response.candidates?.[0]?.groundingMetadata?.groundingChunks || []
@@ -101,8 +100,7 @@ export class GeminiService {
     const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
     if (!downloadLink) throw new Error("Video generation failed");
     
-    // The response.body contains the MP4 bytes. You must append an API key when fetching from the download link.
-    const apiKey = process.env.API_KEY;
+    const apiKey = this.getResolvedKey();
     const response = await fetch(`${downloadLink}&key=${apiKey}`);
     const blob = await response.blob();
     return URL.createObjectURL(blob);
