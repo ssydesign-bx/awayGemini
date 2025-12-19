@@ -1,6 +1,5 @@
-
 {
-  "name": "SSYDESIGN Pro",
+  "name": "Copy of SSYDESIGN Pro",
   "description": "A premium AI-powered creative suite for text, image, and video generation using the latest Gemini and Veo models.",
   "requestFramePermissions": [
     "camera",

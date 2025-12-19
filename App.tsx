@@ -6,11 +6,13 @@ import Header from './components/Header';
 import ChatAssistant from './components/ChatAssistant';
 import ImageGenerator from './components/ImageGenerator';
 import VideoGenerator from './components/VideoGenerator';
+import KeyModal from './components/KeyModal';
 
 const App: React.FC = () => {
   const [mode, setMode] = useState<AppMode>(AppMode.CHAT);
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [hasApiKey, setHasApiKey] = useState(false);
+  const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
   
   // Archiving states for session persistence
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
@@ -26,12 +28,20 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const checkKey = async () => {
-      // 1. Check for selected API key via AI Studio native method
+      // 1. LocalStorage 체크 (Vercel 사용자용)
+      const customKey = localStorage.getItem('ssy_pro_user_key');
+      if (customKey) {
+        (process.env as any).API_KEY = customKey;
+        setHasApiKey(true);
+        return;
+      }
+
+      // 2. AI Studio 내부 환경 체크
       if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
         const hasKey = await window.aistudio.hasSelectedApiKey();
-        setHasApiKey(hasKey || !!process.env.API_KEY);
+        setHasApiKey(hasKey);
       } 
-      // 2. Fallback to check environment variable directly
+      // 3. 시스템 환경 변수 직접 체크
       else {
         setHasApiKey(!!process.env.API_KEY);
       }
@@ -48,11 +58,25 @@ const App: React.FC = () => {
   }, [assetArchive]);
 
   const handleSelectKey = async () => {
+    // AI Studio 내부라면 전용 창 열기
     if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
       await window.aistudio.openSelectKey();
-      // Assume the key selection was successful after triggering the dialog to mitigate race conditions.
       setHasApiKey(true);
+    } 
+    // Vercel 등 외부라면 커스텀 모달 열기
+    else {
+      setIsKeyModalOpen(true);
     }
+  };
+
+  const handleSaveCustomKey = (key: string) => {
+    localStorage.setItem('ssy_pro_user_key', key);
+    // SDK가 참조하는 process.env.API_KEY를 실시간으로 업데이트
+    (process.env as any).API_KEY = key;
+    setHasApiKey(true);
+    setIsKeyModalOpen(false);
+    // 모든 서비스가 새 키를 확실히 인지하도록 리로드 (선택 사항)
+    window.location.reload();
   };
 
   const createNewSession = () => {
@@ -131,6 +155,12 @@ const App: React.FC = () => {
           </div>
         </main>
       </div>
+
+      <KeyModal 
+        isOpen={isKeyModalOpen}
+        onClose={() => setIsKeyModalOpen(false)}
+        onSave={handleSaveCustomKey}
+      />
     </div>
   );
 };

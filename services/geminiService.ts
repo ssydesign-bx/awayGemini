@@ -5,13 +5,13 @@ import { ImageConfig, VideoConfig } from "../types";
 export class GeminiService {
   /**
    * Resolves the API key exclusively from the environment variable as per guidelines.
-   * Do not use localStorage or prompt the user for the key string directly.
+   * The variable is expected to be pre-configured.
    */
   private static getResolvedKey(): string {
     const apiKey = process.env.API_KEY;
     
     if (!apiKey) {
-      throw new Error("API Key is missing. Please click 'LINK PRO KEY' to select an API key from your paid project.");
+      throw new Error("API Key is missing. Please ensure you have selected a valid API key in AI Studio.");
     }
     return apiKey;
   }
@@ -52,15 +52,22 @@ export class GeminiService {
         imageConfig: {
           aspectRatio: config.aspectRatio,
           ...(config.quality === 'high' && { imageSize: config.imageSize || '1K' })
-        }
+        },
+        // Google Search is only available for gemini-3-pro-image-preview.
+        // Changed google_search to googleSearch as it is the correct type in ToolUnion.
+        ...(config.quality === 'high' && { tools: [{ googleSearch: {} }] })
       }
     });
 
     const candidates = response.candidates;
     if (candidates && candidates.length > 0) {
       for (const part of candidates[0].content.parts) {
+        // Find the image part, do not assume it is the first part.
         if (part.inlineData) {
-          return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+          const base64EncodeString: string = part.inlineData.data;
+          return `data:image/png;base64,${base64EncodeString}`;
+        } else if (part.text) {
+          console.debug(part.text);
         }
       }
     }
