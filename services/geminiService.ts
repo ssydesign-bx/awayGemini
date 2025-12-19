@@ -3,18 +3,14 @@ import { GoogleGenAI, Type, GenerateContentResponse, Modality } from "@google/ge
 import { ImageConfig, VideoConfig } from "../types";
 
 export class GeminiService {
-  // Always create a new GoogleGenAI instance right before making an API call to ensure it uses the most up-to-date API key.
+  // Use a new instance right before making an API call to ensure it always uses the most up-to-date API key.
   private static getClient() {
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) {
-      throw new Error("API Key is missing. Please select an API key using the 'SELECT KEY' button.");
-    }
-    return new GoogleGenAI({ apiKey });
+    return new GoogleGenAI({ apiKey: process.env.API_KEY });
   }
 
   static async chat(message: string, history: { role: string, content: string }[], imageData?: string) {
     const ai = this.getClient();
-    // Complex text tasks use gemini-3-pro-preview.
+    // Complex Text Task: Use gemini-3-pro-preview
     const model = 'gemini-3-pro-preview';
     
     const parts: any[] = [{ text: message }];
@@ -31,14 +27,14 @@ export class GeminiService {
       model,
       contents: [
         ...history.map(h => ({
-          // Map 'assistant' role to 'model' as required by the Gemini API.
           role: h.role === 'assistant' ? 'model' : 'user',
           parts: [{ text: h.content }]
         })),
         { role: 'user', parts }
       ],
       config: {
-        systemInstruction: "You are a professional creative director. You can see images and help with design analysis, copy, and creative projects.",
+        systemInstruction: "You are a professional creative director. Help the user brainstorm ideas for designs, copy, and creative projects.",
+        // Grounding with Google Search for up-to-date information
         tools: [{ googleSearch: {} }]
       }
     });
@@ -51,7 +47,7 @@ export class GeminiService {
 
   static async generateImage(prompt: string, config: ImageConfig, imageData?: string) {
     const ai = this.getClient();
-    // Use gemini-3-pro-image-preview for high-quality generation; otherwise gemini-2.5-flash-image.
+    // Use gemini-3-pro-image-preview for high quality (requires user API key) or gemini-2.5-flash-image for standard tasks
     const model = config.quality === 'high' ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
     
     const parts: any[] = [{ text: prompt }];
@@ -72,7 +68,7 @@ export class GeminiService {
           aspectRatio: config.aspectRatio,
           ...(config.quality === 'high' && { imageSize: config.imageSize || '1K' })
         },
-        // Google Search tool is only available for gemini-3-pro-image-preview.
+        // googleSearch tool is only available for gemini-3-pro-image-preview
         ...(config.quality === 'high' && { tools: [{ googleSearch: {} }] })
       }
     });
@@ -80,12 +76,13 @@ export class GeminiService {
     const candidates = response.candidates;
     if (candidates && candidates.length > 0) {
       for (const part of candidates[0].content.parts) {
+        // Find the image part in response candidates
         if (part.inlineData) {
           return `data:image/png;base64,${part.inlineData.data}`;
         }
       }
     }
-    throw new Error("No image part returned from model.");
+    throw new Error("No image data returned from Gemini.");
   }
 
   static async generateVideo(prompt: string, config: VideoConfig, imageData?: string, onProgress?: (msg: string) => void) {
@@ -114,6 +111,7 @@ export class GeminiService {
     const messages = ["Refining physics...", "Temporal synthesis...", "Lighting pass...", "Finalizing bytes..."];
     let msgIdx = 0;
 
+    // Polling logic for video generation progress
     while (!operation.done) {
       onProgress?.(messages[msgIdx % messages.length]);
       msgIdx++;
@@ -124,7 +122,7 @@ export class GeminiService {
     const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
     if (!downloadLink) throw new Error("Video generation failed");
     
-    // Append API key when fetching from the download link as per guidelines.
+    // Append the API key from environment variable when fetching video data
     const response = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
     const blob = await response.blob();
     return URL.createObjectURL(blob);

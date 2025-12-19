@@ -12,7 +12,7 @@ const App: React.FC = () => {
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [hasApiKey, setHasApiKey] = useState(false);
   
-  // Archiving states for session persistence
+  // Persistence for sessions and generated assets
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
     const saved = localStorage.getItem('studio_sessions');
     return saved ? JSON.parse(saved) : [{ id: 'default', title: 'New Conversation', messages: [], updatedAt: Date.now() }];
@@ -26,12 +26,12 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const checkKey = async () => {
-      // Mandated: Check for API key selection using window.aistudio.
+      // Check whether an API key has been selected using AI Studio native API
       if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
         const hasKey = await window.aistudio.hasSelectedApiKey();
         setHasApiKey(hasKey);
       } else {
-        // Fallback for direct environment variable access.
+        // Fallback check for environment variable
         setHasApiKey(!!process.env.API_KEY);
       }
     };
@@ -47,12 +47,12 @@ const App: React.FC = () => {
   }, [assetArchive]);
 
   const handleSelectKey = async () => {
-    // Mandated: Open the API key selection dialog provided by the platform.
+    // Open the native AI Studio key selection dialog
     if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
       await window.aistudio.openSelectKey();
-      // Assume success immediately after opening dialog to mitigate race conditions.
+      // To prevent race conditions, assume the key selection was successful and update state
       setHasApiKey(true);
-    }
+    } 
   };
 
   const createNewSession = () => {
