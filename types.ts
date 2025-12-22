@@ -23,7 +23,7 @@ export interface ChatSession {
 export interface ImageConfig {
   quality: 'standard' | 'high';
   aspectRatio: "1:1" | "3:4" | "4:3" | "9:16" | "16:9";
-  imageSize?: "1K" | "2K" | "4K";
+  imageSize: "1K" | "2K" | "4K";
 }
 
 export interface VideoConfig {
@@ -40,7 +40,6 @@ export interface GeneratedAsset {
   config?: any;
 }
 
-// Define the AIStudio interface in the global scope to ensure type consistency and resolve modifier conflicts
 declare global {
   interface AIStudio {
     hasSelectedApiKey: () => Promise<boolean>;
@@ -48,7 +47,6 @@ declare global {
   }
 
   interface Window {
-    // Removed readonly to match the environment's definition and resolve the "identical modifiers" error.
-    aistudio: AIStudio;
+    aistudio?: AIStudio;
   }
 }
