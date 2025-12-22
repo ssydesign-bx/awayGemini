@@ -145,10 +145,12 @@ const ImageGenerator: React.FC<ImageGeneratorProps> = ({ onKeyNeeded, hasKey, ar
         alert("Error: This model requires a Paid Google Cloud Project API Key.");
       } else if (error.message === "RESELECT_KEY_REQUIRED" || error.message === "AUTH_REQUIRED") {
         onKeyNeeded();
+      } else if (error.message === "API_SERVER_ERROR") {
+        alert("Server Error (500): Google's API server is temporarily busy. Please try clicking 'Generate' again in a moment.");
       } else if (error.message === "GENERATION_BLOCKED_OR_EMPTY") {
-        alert("Generation was blocked by safety filters. Please try a different prompt.");
+        alert("Generation was blocked by safety filters. Please try a different or more descriptive prompt.");
       } else {
-        alert("An unexpected error occurred: " + error.message);
+        alert("An unexpected error occurred. Please try again or check your API key status.");
       }
     } finally {
       setTimeout(() => {
@@ -369,7 +371,6 @@ const ImageGenerator: React.FC<ImageGeneratorProps> = ({ onKeyNeeded, hasKey, ar
                   <span className="text-[10px] text-gray-400 font-medium">{new Date(asset.timestamp).toLocaleDateString()}</span>
                 </div>
                 
-                {/* Prompt Text - No Clamp, Full Show */}
                 <div className="flex-1">
                   <p className="text-gray-700 text-xs font-normal leading-relaxed tracking-tight group-hover:text-gray-900 transition-colors whitespace-pre-wrap break-words">
                     {asset.prompt}

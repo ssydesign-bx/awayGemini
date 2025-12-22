@@ -4,11 +4,8 @@ import { ImageConfig, VideoConfig } from "../types";
 
 export class GeminiService {
   private static getResolvedKey(): string {
-    // 1. 사용자가 수동으로 입력한 키가 있는지 확인
     const manualKey = localStorage.getItem('ssy_manual_api_key');
     if (manualKey) return manualKey;
-
-    // 2. 환경 변수(AI Studio 연동 키) 확인
     return process.env.API_KEY || "";
   }
 
@@ -19,7 +16,6 @@ export class GeminiService {
   private static handleError(error: any): never {
     const errStr = error.message?.toLowerCase() || "";
     
-    // 키 만료 또는 프로젝트 미찾음 시 리셋 이벤트 발생
     if (errStr.includes("requested entity was not found")) {
       window.dispatchEvent(new CustomEvent('gemini-key-reset'));
       throw new Error("RESELECT_KEY_REQUIRED");
@@ -27,6 +23,10 @@ export class GeminiService {
 
     if (errStr.includes("permission") || errStr.includes("403") || errStr.includes("denied")) {
       throw new Error("PAID_PROJECT_REQUIRED");
+    }
+
+    if (errStr.includes("internal") || errStr.includes("500")) {
+      throw new Error("API_SERVER_ERROR");
     }
     
     throw error;
@@ -90,6 +90,7 @@ export class GeminiService {
     }
 
     try {
+      // 이미지 모델(gemini-3-pro-image-preview)에서는 google_search 명칭을 사용하는 것이 권장됩니다.
       const response = await ai.models.generateContent({
         model,
         contents: { parts },
@@ -98,17 +99,15 @@ export class GeminiService {
             aspectRatio: config.aspectRatio,
             ...(config.quality === 'high' && { imageSize: config.imageSize })
           },
-          ...(config.quality === 'high' && { tools: [{ googleSearch: {} }] })
+          ...(config.quality === 'high' && { tools: [{ google_search: {} }] })
         }
       });
 
-      // 에러 방지: candidates와 content, parts의 존재 여부를 꼼꼼히 확인
       const candidate = response.candidates?.[0];
       if (!candidate) throw new Error("NO_CANDIDATES_RETURNED");
       
       const content = candidate.content;
       if (!content || !content.parts || !Array.isArray(content.parts)) {
-        // 안전 필터링 등으로 인해 파트가 비어있는 경우 'parts is not iterable' 에러가 여기서 방지됨
         throw new Error("GENERATION_BLOCKED_OR_EMPTY");
       }
 
