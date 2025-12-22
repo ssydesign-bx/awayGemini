@@ -24,17 +24,17 @@ const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   return (
-    <aside className={`${isOpen ? 'w-64' : 'w-20'} bg-white border-r border-gray-200 transition-all duration-300 flex flex-col shadow-sm z-20`}>
-      <div className="p-6 flex items-center">
-        {isOpen && <h1 className="text-xl font-black tracking-tight text-gray-900">SSYDESIGN Pro</h1>}
+    <aside className={`${isOpen ? 'w-64' : 'w-20'} bg-white border-r border-gray-200 transition-all duration-300 flex flex-col z-20`}>
+      <div className="p-6 flex items-center h-16">
+        {isOpen && <h1 className="text-lg font-bold text-gray-900 tracking-tight">SSY DESIGN</h1>}
       </div>
 
       <div className="px-4 mb-4">
         <button 
           onClick={onNewChat}
-          className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-gray-200 text-gray-500 hover:border-lime-400 hover:text-lime-600 hover:bg-lime-50 transition-all font-bold ${!isOpen ? 'px-0' : 'px-4'}`}
+          className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all font-medium text-sm ${!isOpen ? 'px-0' : 'px-4'}`}
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
           {isOpen && <span>New Chat</span>}
@@ -42,17 +42,16 @@ const Sidebar: React.FC<SidebarProps> = ({
       </div>
       
       <div className="flex-1 overflow-y-auto px-4 space-y-6">
-        {/* Navigation Section */}
         <nav className="space-y-1">
-          <label className={`text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3 mb-2 block ${!isOpen && 'text-center px-0'}`}>Generators</label>
+          <label className={`text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-3 mb-2 block ${!isOpen && 'hidden'}`}>Tools</label>
           {navItems.map((item) => (
             <button
               key={item.mode}
               onClick={() => onModeChange(item.mode)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${
                 currentMode === item.mode 
-                  ? 'bg-lime-50 text-lime-700 shadow-sm' 
-                  : 'text-gray-500 hover:bg-gray-100'
+                  ? 'bg-gray-100 text-gray-900' 
+                  : 'text-gray-500 hover:bg-gray-50'
               }`}
             >
               <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -63,24 +62,20 @@ const Sidebar: React.FC<SidebarProps> = ({
           ))}
         </nav>
 
-        {/* Sessions Section */}
         {isOpen && (
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3 mb-2 block">Recent Chats</label>
+            <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-3 mb-2 block">History</label>
             <div className="space-y-1">
               {sessions.map((session) => (
                 <div 
                   key={session.id}
                   onClick={() => onSelectSession(session.id)}
-                  className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+                  className={`group relative flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-all ${
                     activeSessionId === session.id && currentMode === AppMode.CHAT
-                      ? 'bg-gray-100 text-gray-900 font-bold' 
+                      ? 'bg-gray-100 text-gray-900 font-semibold' 
                       : 'text-gray-500 hover:bg-gray-50'
                   }`}
                 >
-                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                  </svg>
                   <span className="text-xs truncate flex-1">{session.title}</span>
                   <button 
                     onClick={(e) => onDeleteSession(session.id, e)}
@@ -102,7 +97,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           onClick={toggleSidebar}
           className="w-full flex items-center justify-center p-2 rounded-lg hover:bg-gray-100 text-gray-400"
         >
-          <svg className={`w-6 h-6 transition-transform ${!isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className={`w-5 h-5 transition-transform ${!isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
           </svg>
         </button>
@@ -111,5 +106,4 @@ const Sidebar: React.FC<SidebarProps> = ({
   );
 };
 
-// Added missing default export
 export default Sidebar;

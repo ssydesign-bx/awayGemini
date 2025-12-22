@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, Type, GenerateContentResponse, Modality } from "@google/genai";
+import { GoogleGenAI, Type, GenerateContentResponse, Modality, VideoGenerationReferenceType } from "@google/genai";
 import { ImageConfig, VideoConfig } from "../types";
 
 export class GeminiService {
@@ -52,25 +52,27 @@ export class GeminiService {
         grounding: response.candidates?.[0]?.groundingMetadata?.groundingChunks || []
       };
     } catch (error: any) {
-      if (error.message?.toLowerCase().includes("permission") || error.message?.includes("403")) {
-        throw new Error("PAID_KEY_REQUIRED");
+      const errStr = error.message?.toLowerCase() || "";
+      if (errStr.includes("permission") || errStr.includes("403") || errStr.includes("denied")) {
+        throw new Error("PAID_PROJECT_REQUIRED");
       }
       throw error;
     }
   }
 
-  static async generateImage(prompt: string, config: ImageConfig, imageData?: string) {
+  static async generateImage(prompt: string, config: ImageConfig, imageDatas?: string[]) {
     const ai = this.getClient();
-    // Pro 모델(High Quality)은 3 Pro를 사용하고, Standard는 2.5 Flash를 사용합니다.
     const model = config.quality === 'high' ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
     
     const parts: any[] = [{ text: prompt }];
-    if (imageData) {
-      parts.push({
-        inlineData: {
-          data: imageData.split(',')[1],
-          mimeType: imageData.split(';')[0].split(':')[1]
-        }
+    if (imageDatas && imageDatas.length > 0) {
+      imageDatas.forEach(data => {
+        parts.push({
+          inlineData: {
+            data: data.split(',')[1],
+            mimeType: data.split(';')[0].split(':')[1]
+          }
+        });
       });
     }
 
@@ -81,10 +83,8 @@ export class GeminiService {
         config: {
           imageConfig: {
             aspectRatio: config.aspectRatio,
-            // Pro 모델에서만 imageSize(1K, 2K, 4K) 설정 가능
             ...(config.quality === 'high' && { imageSize: config.imageSize })
           },
-          // Pro 모델에서만 구글 검색 도구 사용 가능
           ...(config.quality === 'high' && { tools: [{ googleSearch: {} }] })
         }
       });
@@ -99,38 +99,55 @@ export class GeminiService {
       }
       throw new Error("NO_IMAGE_DATA");
     } catch (error: any) {
-      if (error.message?.toLowerCase().includes("permission") || error.message?.includes("403")) {
-        throw new Error("PAID_KEY_REQUIRED");
+      const errStr = error.message?.toLowerCase() || "";
+      if (errStr.includes("permission") || errStr.includes("403") || errStr.includes("denied")) {
+        throw new Error("PAID_PROJECT_REQUIRED");
       }
       throw error;
     }
   }
 
-  static async generateVideo(prompt: string, config: VideoConfig, imageData?: string, onProgress?: (msg: string) => void) {
+  static async generateVideo(prompt: string, config: VideoConfig, imageDatas?: string[], onProgress?: (msg: string) => void) {
     const ai = this.getClient();
-    onProgress?.("Initializing Veo 3.1 engine...");
+    onProgress?.("Initializing Video Engine...");
+    
+    // 다중 참조 이미지(최대 3장)의 경우 veo-3.1-generate-preview 모델 사용
+    const isMultiRef = imageDatas && imageDatas.length > 1;
+    const model = isMultiRef ? 'veo-3.1-generate-preview' : 'veo-3.1-fast-generate-preview';
     
     const videoParams: any = {
-      model: 'veo-3.1-fast-generate-preview',
+      model,
       prompt,
       config: {
         numberOfVideos: 1,
-        resolution: config.resolution,
-        aspectRatio: config.aspectRatio
+        resolution: isMultiRef ? '720p' : config.resolution, // 다중 참조는 720p 고정
+        aspectRatio: isMultiRef ? '16:9' : config.aspectRatio // 다중 참조는 16:9 고정
       }
     };
 
-    if (imageData) {
-      videoParams.image = {
-        imageBytes: imageData.split(',')[1],
-        mimeType: imageData.split(';')[0].split(':')[1]
-      };
+    if (imageDatas && imageDatas.length > 0) {
+      if (isMultiRef) {
+        // 최대 3장까지만 지원
+        const refImages = imageDatas.slice(0, 3).map(data => ({
+          image: {
+            imageBytes: data.split(',')[1],
+            mimeType: data.split(';')[0].split(':')[1]
+          },
+          referenceType: VideoGenerationReferenceType.ASSET
+        }));
+        videoParams.config.referenceImages = refImages;
+      } else {
+        videoParams.image = {
+          imageBytes: imageDatas[0].split(',')[1],
+          mimeType: imageDatas[0].split(';')[0].split(':')[1]
+        };
+      }
     }
 
     try {
       let operation = await ai.models.generateVideos(videoParams);
       while (!operation.done) {
-        onProgress?.("Generating temporal frames...");
+        onProgress?.("Processing motion frames...");
         await new Promise(resolve => setTimeout(resolve, 10000));
         operation = await ai.operations.getVideosOperation({ operation: operation });
       }
@@ -142,8 +159,9 @@ export class GeminiService {
       const blob = await response.blob();
       return URL.createObjectURL(blob);
     } catch (error: any) {
-      if (error.message?.toLowerCase().includes("permission") || error.message?.includes("403")) {
-        throw new Error("PAID_KEY_REQUIRED");
+      const errStr = error.message?.toLowerCase() || "";
+      if (errStr.includes("permission") || errStr.includes("403") || errStr.includes("denied")) {
+        throw new Error("PAID_PROJECT_REQUIRED");
       }
       throw error;
     }

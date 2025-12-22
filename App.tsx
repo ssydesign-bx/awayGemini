@@ -32,7 +32,6 @@ const App: React.FC = () => {
       return;
     }
 
-    // AI Studio 네이티브 체크
     if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
       try {
         const hasKey = await window.aistudio.hasSelectedApiKey();
@@ -49,8 +48,16 @@ const App: React.FC = () => {
     checkKeyStatus();
   }, []);
 
+  // Persistence Sync
+  useEffect(() => {
+    localStorage.setItem('studio_sessions', JSON.stringify(sessions));
+  }, [sessions]);
+
+  useEffect(() => {
+    localStorage.setItem('studio_assets', JSON.stringify(assetArchive));
+  }, [assetArchive]);
+
   const handleSelectKey = async () => {
-    // 엄격한 체크: AI Studio 내부인가?
     const isAiStudioEnv = window.aistudio && 
                          typeof window.aistudio.openSelectKey === 'function' &&
                          window.location.hostname.includes('google.com');
@@ -63,7 +70,6 @@ const App: React.FC = () => {
         setIsKeyModalOpen(true);
       }
     } else {
-      // Vercel 등 외부 환경에서는 무조건 자체 모달
       setIsKeyModalOpen(true);
     }
   };
@@ -72,16 +78,10 @@ const App: React.FC = () => {
     localStorage.setItem('ssy_pro_user_key', key);
     setHasApiKey(true);
     setIsKeyModalOpen(false);
-    // 즉시 적용을 위해 페이지를 새로고침하거나 상태를 강제 업데이트 할 수 있습니다.
   };
 
-  const handleError = (err: any) => {
-    if (err.message === "PERMISSION_DENIED" || err.message === "AUTH_REQUIRED") {
-      setHasApiKey(false);
-      setIsKeyModalOpen(true);
-    } else {
-      alert("Error: " + err.message);
-    }
+  const handleNewAsset = (newAsset: GeneratedAsset) => {
+    setAssetArchive(prev => [newAsset, ...prev]);
   };
 
   const updateActiveSession = (newMessages: Message[]) => {
@@ -109,6 +109,7 @@ const App: React.FC = () => {
           const newS = { id: Date.now().toString(), title: 'New Chat', messages: [], updatedAt: Date.now() };
           setSessions([newS, ...sessions]);
           setActiveSessionId(newS.id);
+          setMode(AppMode.CHAT);
         }}
         onDeleteSession={(id, e) => {
           e.stopPropagation();
@@ -119,9 +120,25 @@ const App: React.FC = () => {
         <Header onSelectKey={handleSelectKey} hasKey={hasApiKey} />
         <main className="flex-1 overflow-y-auto p-4 md:p-8">
           <div className="max-w-7xl mx-auto h-full">
-            {mode === AppMode.CHAT && <ChatAssistant session={activeSession} onUpdateMessages={updateActiveSession} />}
-            {mode === AppMode.IMAGE && <ImageGenerator onKeyNeeded={handleSelectKey} hasKey={hasApiKey} archive={assetArchive.filter(a => a.type === 'image')} onNewAsset={(a) => setAssetArchive([a, ...assetArchive])} />}
-            {mode === AppMode.VIDEO && <VideoGenerator onKeyNeeded={handleSelectKey} hasKey={hasApiKey} archive={assetArchive.filter(a => a.type === 'video')} onNewAsset={(a) => setAssetArchive([a, ...assetArchive])} />}
+            {mode === AppMode.CHAT && (
+              <ChatAssistant session={activeSession} onUpdateMessages={updateActiveSession} />
+            )}
+            {mode === AppMode.IMAGE && (
+              <ImageGenerator 
+                onKeyNeeded={handleSelectKey} 
+                hasKey={hasApiKey} 
+                archive={assetArchive.filter(a => a.type === 'image')} 
+                onNewAsset={handleNewAsset} 
+              />
+            )}
+            {mode === AppMode.VIDEO && (
+              <VideoGenerator 
+                onKeyNeeded={handleSelectKey} 
+                hasKey={hasApiKey} 
+                archive={assetArchive.filter(a => a.type === 'video')} 
+                onNewAsset={handleNewAsset} 
+              />
+            )}
           </div>
         </main>
       </div>
