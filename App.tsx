@@ -6,11 +6,13 @@ import Header from './components/Header';
 import ChatAssistant from './components/ChatAssistant';
 import ImageGenerator from './components/ImageGenerator';
 import VideoGenerator from './components/VideoGenerator';
+import KeyModal from './components/KeyModal';
 
 const App: React.FC = () => {
   const [mode, setMode] = useState<AppMode>(AppMode.CHAT);
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [hasApiKey, setHasApiKey] = useState(false);
+  const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
   
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
     const saved = localStorage.getItem('studio_sessions');
@@ -24,7 +26,13 @@ const App: React.FC = () => {
   });
 
   const checkKeyStatus = async () => {
-    // Exclusively rely on AI Studio's key selection or process.env
+    // 1. 수동 키가 있는지 먼저 확인
+    if (localStorage.getItem('ssy_manual_api_key')) {
+      setHasApiKey(true);
+      return;
+    }
+
+    // 2. AI Studio 연동 확인
     if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
       try {
         const hasKey = await window.aistudio.hasSelectedApiKey();
@@ -42,12 +50,8 @@ const App: React.FC = () => {
 
     const handleKeyReset = () => {
       setHasApiKey(false);
-      // Automatically prompt for key selection on failure as per guidelines
-      if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
-        window.aistudio.openSelectKey();
-      } else {
-        alert("API Key reset required. Please ensure process.env.API_KEY is configured.");
-      }
+      localStorage.removeItem('ssy_manual_api_key');
+      setIsKeyModalOpen(true);
     };
 
     window.addEventListener('gemini-key-reset', handleKeyReset);
@@ -63,19 +67,14 @@ const App: React.FC = () => {
     localStorage.setItem('studio_assets', JSON.stringify(assetArchive));
   }, [assetArchive]);
 
-  const handleSelectKey = async () => {
-    // Use the mandatory AI Studio key selection dialog
-    if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
-      try {
-        await window.aistudio.openSelectKey();
-        // Assume the key selection was successful as per guidelines to avoid race conditions
-        setHasApiKey(true);
-      } catch (error) {
-        console.error("Key selection error:", error);
-      }
-    } else {
-      console.warn("AI Studio key selection not available in this environment.");
-    }
+  const handleOpenKeySelector = () => {
+    setIsKeyModalOpen(true);
+  };
+
+  const handleSaveKey = (key: string) => {
+    localStorage.setItem('ssy_manual_api_key', key);
+    setHasApiKey(true);
+    setIsKeyModalOpen(false);
   };
 
   const handleNewAsset = (newAsset: GeneratedAsset) => {
@@ -115,7 +114,7 @@ const App: React.FC = () => {
         }}
       />
       <div className="flex flex-col flex-1 overflow-hidden relative">
-        <Header onSelectKey={handleSelectKey} hasKey={hasApiKey} />
+        <Header onSelectKey={handleOpenKeySelector} hasKey={hasApiKey} />
         <main className="flex-1 overflow-y-auto p-4 md:p-8">
           <div className="max-w-7xl mx-auto h-full">
             {mode === AppMode.CHAT && (
@@ -123,7 +122,7 @@ const App: React.FC = () => {
             )}
             {mode === AppMode.IMAGE && (
               <ImageGenerator 
-                onKeyNeeded={handleSelectKey} 
+                onKeyNeeded={handleOpenKeySelector} 
                 hasKey={hasApiKey} 
                 archive={assetArchive.filter(a => a.type === 'image')} 
                 onNewAsset={handleNewAsset} 
@@ -131,7 +130,7 @@ const App: React.FC = () => {
             )}
             {mode === AppMode.VIDEO && (
               <VideoGenerator 
-                onKeyNeeded={handleSelectKey} 
+                onKeyNeeded={handleOpenKeySelector} 
                 hasKey={hasApiKey} 
                 archive={assetArchive.filter(a => a.type === 'video')} 
                 onNewAsset={handleNewAsset} 
@@ -140,6 +139,12 @@ const App: React.FC = () => {
           </div>
         </main>
       </div>
+
+      <KeyModal 
+        isOpen={isKeyModalOpen} 
+        onClose={() => setIsKeyModalOpen(false)} 
+        onSave={handleSaveKey} 
+      />
     </div>
   );
 };

@@ -1,10 +1,14 @@
 
-// Always use GoogleGenAI from @google/genai
 import { GoogleGenAI, Type, VideoGenerationReferenceType } from "@google/genai";
 import { ImageConfig, VideoConfig } from "../types";
 
 export class GeminiService {
   private static getResolvedKey(): string {
+    // 1. 사용자가 수동으로 입력한 키가 있는지 확인
+    const manualKey = localStorage.getItem('ssy_manual_api_key');
+    if (manualKey) return manualKey;
+
+    // 2. 환경 변수(AI Studio 연동 키) 확인
     return process.env.API_KEY || "";
   }
 
@@ -15,6 +19,7 @@ export class GeminiService {
   private static handleError(error: any): never {
     const errStr = error.message?.toLowerCase() || "";
     
+    // 키 만료 또는 프로젝트 미찾음 시 리셋 이벤트 발생
     if (errStr.includes("requested entity was not found")) {
       window.dispatchEvent(new CustomEvent('gemini-key-reset'));
       throw new Error("RESELECT_KEY_REQUIRED");
@@ -97,24 +102,23 @@ export class GeminiService {
         }
       });
 
-      // 에러 방지를 위한 철저한 검증
+      // 에러 방지: candidates와 content, parts의 존재 여부를 꼼꼼히 확인
       const candidate = response.candidates?.[0];
       if (!candidate) throw new Error("NO_CANDIDATES_RETURNED");
       
-      const responseContent = candidate.content;
-      if (!responseContent || !responseContent.parts || !Array.isArray(responseContent.parts)) {
-        // 안전 필터 등에 의해 결과가 비어있는 경우
+      const content = candidate.content;
+      if (!content || !content.parts || !Array.isArray(content.parts)) {
+        // 안전 필터링 등으로 인해 파트가 비어있는 경우 'parts is not iterable' 에러가 여기서 방지됨
         throw new Error("GENERATION_BLOCKED_OR_EMPTY");
       }
 
-      // Safe iteration over parts
-      for (const part of responseContent.parts) {
+      for (const part of content.parts) {
         if (part.inlineData) {
           return `data:image/png;base64,${part.inlineData.data}`;
         }
       }
       
-      throw new Error("NO_IMAGE_DATA_IN_RESPONSE");
+      throw new Error("IMAGE_DATA_NOT_FOUND");
     } catch (error: any) {
       this.handleError(error);
     }
