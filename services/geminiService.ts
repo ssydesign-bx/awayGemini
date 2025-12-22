@@ -1,24 +1,34 @@
 
-import { GoogleGenAI, Type, GenerateContentResponse, Modality, VideoGenerationReferenceType } from "@google/genai";
+// Always use GoogleGenAI from @google/genai
+import { GoogleGenAI, Type, VideoGenerationReferenceType } from "@google/genai";
 import { ImageConfig, VideoConfig } from "../types";
 
 export class GeminiService {
   private static getResolvedKey(): string {
-    const savedKey = localStorage.getItem('ssy_pro_user_key');
-    if (savedKey) return savedKey;
-
-    const envKey = process.env.API_KEY;
-    if (envKey) return envKey;
-
-    throw new Error("AUTH_REQUIRED");
+    return process.env.API_KEY || "";
   }
 
-  private static getClient() {
+  private static createClient() {
     return new GoogleGenAI({ apiKey: this.getResolvedKey() });
   }
 
-  static async chat(message: string, history: { role: string, content: string }[], imageData?: string) {
-    const ai = this.getClient();
+  private static handleError(error: any): never {
+    const errStr = error.message?.toLowerCase() || "";
+    
+    if (errStr.includes("requested entity was not found")) {
+      window.dispatchEvent(new CustomEvent('gemini-key-reset'));
+      throw new Error("RESELECT_KEY_REQUIRED");
+    }
+
+    if (errStr.includes("permission") || errStr.includes("403") || errStr.includes("denied")) {
+      throw new Error("PAID_PROJECT_REQUIRED");
+    }
+    
+    throw error;
+  }
+
+  static async chat(message: string, history: { role: string, content: string }[], imageData?: string): Promise<{ text: string; grounding: any[]; }> {
+    const ai = this.createClient();
     const model = 'gemini-3-pro-preview';
     
     const parts: any[] = [{ text: message }];
@@ -52,27 +62,25 @@ export class GeminiService {
         grounding: response.candidates?.[0]?.groundingMetadata?.groundingChunks || []
       };
     } catch (error: any) {
-      const errStr = error.message?.toLowerCase() || "";
-      if (errStr.includes("permission") || errStr.includes("403") || errStr.includes("denied")) {
-        throw new Error("PAID_PROJECT_REQUIRED");
-      }
-      throw error;
+      this.handleError(error);
     }
   }
 
-  static async generateImage(prompt: string, config: ImageConfig, imageDatas?: string[]) {
-    const ai = this.getClient();
+  static async generateImage(prompt: string, config: ImageConfig, imageDatas?: string[]): Promise<string> {
+    const ai = this.createClient();
     const model = config.quality === 'high' ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
     
     const parts: any[] = [{ text: prompt }];
     if (imageDatas && imageDatas.length > 0) {
       imageDatas.forEach(data => {
-        parts.push({
-          inlineData: {
-            data: data.split(',')[1],
-            mimeType: data.split(';')[0].split(':')[1]
-          }
-        });
+        if (data && data.includes(',')) {
+          parts.push({
+            inlineData: {
+              data: data.split(',')[1],
+              mimeType: data.split(';')[0].split(':')[1]
+            }
+          });
+        }
       });
     }
 
@@ -89,29 +97,33 @@ export class GeminiService {
         }
       });
 
-      const candidates = response.candidates;
-      if (candidates && candidates.length > 0) {
-        for (const part of candidates[0].content.parts) {
-          if (part.inlineData) {
-            return `data:image/png;base64,${part.inlineData.data}`;
-          }
+      // 에러 방지를 위한 철저한 검증
+      const candidate = response.candidates?.[0];
+      if (!candidate) throw new Error("NO_CANDIDATES_RETURNED");
+      
+      const responseContent = candidate.content;
+      if (!responseContent || !responseContent.parts || !Array.isArray(responseContent.parts)) {
+        // 안전 필터 등에 의해 결과가 비어있는 경우
+        throw new Error("GENERATION_BLOCKED_OR_EMPTY");
+      }
+
+      // Safe iteration over parts
+      for (const part of responseContent.parts) {
+        if (part.inlineData) {
+          return `data:image/png;base64,${part.inlineData.data}`;
         }
       }
-      throw new Error("NO_IMAGE_DATA");
+      
+      throw new Error("NO_IMAGE_DATA_IN_RESPONSE");
     } catch (error: any) {
-      const errStr = error.message?.toLowerCase() || "";
-      if (errStr.includes("permission") || errStr.includes("403") || errStr.includes("denied")) {
-        throw new Error("PAID_PROJECT_REQUIRED");
-      }
-      throw error;
+      this.handleError(error);
     }
   }
 
-  static async generateVideo(prompt: string, config: VideoConfig, imageDatas?: string[], onProgress?: (msg: string) => void) {
-    const ai = this.getClient();
+  static async generateVideo(prompt: string, config: VideoConfig, imageDatas?: string[], onProgress?: (msg: string) => void): Promise<string> {
+    const ai = this.createClient();
     onProgress?.("Initializing Video Engine...");
     
-    // 다중 참조 이미지(최대 3장)의 경우 veo-3.1-generate-preview 모델 사용
     const isMultiRef = imageDatas && imageDatas.length > 1;
     const model = isMultiRef ? 'veo-3.1-generate-preview' : 'veo-3.1-fast-generate-preview';
     
@@ -120,14 +132,13 @@ export class GeminiService {
       prompt,
       config: {
         numberOfVideos: 1,
-        resolution: isMultiRef ? '720p' : config.resolution, // 다중 참조는 720p 고정
-        aspectRatio: isMultiRef ? '16:9' : config.aspectRatio // 다중 참조는 16:9 고정
+        resolution: isMultiRef ? '720p' : config.resolution,
+        aspectRatio: isMultiRef ? '16:9' : config.aspectRatio
       }
     };
 
     if (imageDatas && imageDatas.length > 0) {
       if (isMultiRef) {
-        // 최대 3장까지만 지원
         const refImages = imageDatas.slice(0, 3).map(data => ({
           image: {
             imageBytes: data.split(',')[1],
@@ -159,11 +170,7 @@ export class GeminiService {
       const blob = await response.blob();
       return URL.createObjectURL(blob);
     } catch (error: any) {
-      const errStr = error.message?.toLowerCase() || "";
-      if (errStr.includes("permission") || errStr.includes("403") || errStr.includes("denied")) {
-        throw new Error("PAID_PROJECT_REQUIRED");
-      }
-      throw error;
+      this.handleError(error);
     }
   }
 }

@@ -44,6 +44,18 @@ const KeyModal: React.FC<KeyModalProps> = ({ isOpen, onClose, onSave }) => {
               </div>
             </div>
 
+            <div className="bg-blue-50 rounded-2xl p-4 flex gap-3 border border-blue-100">
+              <div className="text-blue-600 shrink-0">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="text-xs text-blue-800 leading-relaxed">
+                <p className="font-bold mb-1">Multi-user Safe & Isolated</p>
+                <p>Your API key is stored <strong>only in your browser</strong>. It is never shared with other users or stored on our servers. Each person uses their own personal workspace.</p>
+              </div>
+            </div>
+
             <div className="bg-amber-50 rounded-2xl p-4 flex gap-3 border border-amber-100">
               <div className="text-amber-600 shrink-0">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -72,7 +84,7 @@ const KeyModal: React.FC<KeyModalProps> = ({ isOpen, onClose, onSave }) => {
         </div>
         
         <div className="bg-gray-50 px-8 py-4 text-center">
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">Keys are stored locally in your browser storage.</p>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">Keys are stored locally in your private browser storage.</p>
         </div>
       </div>
     </div>

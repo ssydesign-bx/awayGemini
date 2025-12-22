@@ -6,13 +6,11 @@ import Header from './components/Header';
 import ChatAssistant from './components/ChatAssistant';
 import ImageGenerator from './components/ImageGenerator';
 import VideoGenerator from './components/VideoGenerator';
-import KeyModal from './components/KeyModal';
 
 const App: React.FC = () => {
   const [mode, setMode] = useState<AppMode>(AppMode.CHAT);
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [hasApiKey, setHasApiKey] = useState(false);
-  const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
   
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
     const saved = localStorage.getItem('studio_sessions');
@@ -26,12 +24,7 @@ const App: React.FC = () => {
   });
 
   const checkKeyStatus = async () => {
-    const savedKey = localStorage.getItem('ssy_pro_user_key');
-    if (savedKey) {
-      setHasApiKey(true);
-      return;
-    }
-
+    // Exclusively rely on AI Studio's key selection or process.env
     if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
       try {
         const hasKey = await window.aistudio.hasSelectedApiKey();
@@ -46,6 +39,19 @@ const App: React.FC = () => {
 
   useEffect(() => {
     checkKeyStatus();
+
+    const handleKeyReset = () => {
+      setHasApiKey(false);
+      // Automatically prompt for key selection on failure as per guidelines
+      if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
+        window.aistudio.openSelectKey();
+      } else {
+        alert("API Key reset required. Please ensure process.env.API_KEY is configured.");
+      }
+    };
+
+    window.addEventListener('gemini-key-reset', handleKeyReset);
+    return () => window.removeEventListener('gemini-key-reset', handleKeyReset);
   }, []);
 
   // Persistence Sync
@@ -58,26 +64,18 @@ const App: React.FC = () => {
   }, [assetArchive]);
 
   const handleSelectKey = async () => {
-    const isAiStudioEnv = window.aistudio && 
-                         typeof window.aistudio.openSelectKey === 'function' &&
-                         window.location.hostname.includes('google.com');
-
-    if (isAiStudioEnv) {
+    // Use the mandatory AI Studio key selection dialog
+    if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
       try {
-        await window.aistudio!.openSelectKey();
+        await window.aistudio.openSelectKey();
+        // Assume the key selection was successful as per guidelines to avoid race conditions
         setHasApiKey(true);
       } catch (error) {
-        setIsKeyModalOpen(true);
+        console.error("Key selection error:", error);
       }
     } else {
-      setIsKeyModalOpen(true);
+      console.warn("AI Studio key selection not available in this environment.");
     }
-  };
-
-  const handleSaveCustomKey = (key: string) => {
-    localStorage.setItem('ssy_pro_user_key', key);
-    setHasApiKey(true);
-    setIsKeyModalOpen(false);
   };
 
   const handleNewAsset = (newAsset: GeneratedAsset) => {
@@ -142,12 +140,6 @@ const App: React.FC = () => {
           </div>
         </main>
       </div>
-
-      <KeyModal 
-        isOpen={isKeyModalOpen} 
-        onClose={() => setIsKeyModalOpen(false)} 
-        onSave={handleSaveCustomKey} 
-      />
     </div>
   );
 };
