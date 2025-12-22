@@ -21,18 +21,21 @@ const App: React.FC = () => {
   const [activeSessionId, setActiveSessionId] = useState<string>(sessions[0]?.id || 'default');
   
   const [assetArchive, setAssetArchive] = useState<GeneratedAsset[]>(() => {
-    const saved = localStorage.getItem('studio_assets');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('studio_assets');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      console.error("Failed to load assets from storage", e);
+      return [];
+    }
   });
 
   const checkKeyStatus = async () => {
-    // 1. 수동 키가 있는지 먼저 확인
     if (localStorage.getItem('ssy_manual_api_key')) {
       setHasApiKey(true);
       return;
     }
 
-    // 2. AI Studio 연동 확인
     if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
       try {
         const hasKey = await window.aistudio.hasSelectedApiKey();
@@ -64,7 +67,15 @@ const App: React.FC = () => {
   }, [sessions]);
 
   useEffect(() => {
-    localStorage.setItem('studio_assets', JSON.stringify(assetArchive));
+    try {
+      localStorage.setItem('studio_assets', JSON.stringify(assetArchive));
+    } catch (e) {
+      // LocalStorage 한도 초과 시 오래된 자산 순차 제거
+      if (assetArchive.length > 5) {
+        console.warn("Storage full, pruning old assets...");
+        setAssetArchive(prev => prev.slice(0, prev.length - 1));
+      }
+    }
   }, [assetArchive]);
 
   const handleOpenKeySelector = () => {

@@ -155,7 +155,7 @@ const ImageGenerator: React.FC<ImageGeneratorProps> = ({ onKeyNeeded, hasKey, ar
     <div className="space-y-8 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-700">
       {/* Input Section */}
       <div 
-        className={`bg-white p-6 md:p-10 rounded-[32px] border transition-all duration-500 shadow-sm relative overflow-hidden ${
+        className={`bg-white p-6 md:p-10 rounded-[40px] border transition-all duration-500 shadow-sm relative overflow-hidden ${
           isDragging ? 'border-blue-500 ring-8 ring-blue-50 bg-blue-50/10' : 'border-gray-100'
         }`}
         onDragOver={handleDragOver}
@@ -208,7 +208,7 @@ const ImageGenerator: React.FC<ImageGeneratorProps> = ({ onKeyNeeded, hasKey, ar
                 onChange={(e) => setPrompt(e.target.value)}
                 onPaste={handlePaste}
                 placeholder="Describe your creative vision in detail... Paste images or drag files here to use as reference."
-                className="w-full bg-gray-50 border-2 border-transparent rounded-[24px] px-8 py-6 text-lg focus:outline-none focus:bg-white focus:border-gray-200 transition-all resize-y min-h-[160px] font-medium leading-relaxed placeholder:text-gray-300"
+                className="w-full bg-gray-50 border-2 border-transparent rounded-[24px] px-8 py-6 text-base focus:outline-none focus:bg-white focus:border-gray-200 transition-all resize-y min-h-[160px] font-normal leading-relaxed placeholder:text-gray-300"
               />
               
               {isDragging && (
@@ -303,7 +303,7 @@ const ImageGenerator: React.FC<ImageGeneratorProps> = ({ onKeyNeeded, hasKey, ar
         />
       </div>
 
-      {/* Gallery Section */}
+      {/* Gallery (DB) Section */}
       <div className="flex-1 flex flex-col pt-4">
         <div className="flex items-center gap-4 mb-8 px-4">
           <h3 className="text-xs font-black text-gray-900 uppercase tracking-[0.3em]">Project Assets</h3>
@@ -311,25 +311,60 @@ const ImageGenerator: React.FC<ImageGeneratorProps> = ({ onKeyNeeded, hasKey, ar
           <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">{archive.length} CREATIONS</span>
         </div>
         
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8 pb-20">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 pb-20">
           {archive.map((asset) => (
-            <div key={asset.id} className="group bg-white rounded-[24px] border border-gray-100 overflow-hidden shadow-sm hover:shadow-2xl hover:-translate-y-1 transition-all duration-500">
-              <div className="aspect-square relative overflow-hidden bg-gray-50">
+            <div key={asset.id} className="group bg-white rounded-[32px] border border-gray-100 overflow-hidden shadow-sm hover:shadow-2xl hover:-translate-y-1 transition-all duration-500">
+              {/* Image Container */}
+              <div className="aspect-square relative overflow-hidden bg-gray-50 border-b border-gray-50">
                 <img src={asset.url} alt={asset.prompt} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" />
-                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-center p-6 text-center">
-                  <p className="text-white text-[10px] font-bold line-clamp-3 mb-4 leading-relaxed tracking-tight">{asset.prompt}</p>
-                  <button onClick={() => triggerAutoDownload(asset.url, asset.id)} className="px-6 py-2.5 bg-white text-gray-900 rounded-full text-[11px] font-black hover:bg-gray-100 transition-all active:scale-95 shadow-xl">
+                
+                {/* Status Badges Overlay */}
+                <div className="absolute top-4 left-4 flex flex-col gap-2">
+                  <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-tighter shadow-sm ${asset.config?.quality === 'high' ? 'bg-blue-600 text-white' : 'bg-gray-900 text-white'}`}>
+                    {asset.config?.quality === 'high' ? 'PRO 3.0' : 'FLASH'}
+                  </span>
+                  {asset.config?.imageSize && (
+                    <span className="bg-white/90 backdrop-blur px-2.5 py-1 rounded-lg text-[9px] font-black text-gray-900 uppercase tracking-tighter shadow-sm w-fit">
+                      {asset.config.imageSize} RES
+                    </span>
+                  )}
+                  <span className="bg-white/90 backdrop-blur px-2.5 py-1 rounded-lg text-[9px] font-black text-gray-900 uppercase tracking-tighter shadow-sm w-fit">
+                    {asset.config?.aspectRatio || '1:1'}
+                  </span>
+                </div>
+
+                {/* Hover Actions */}
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center backdrop-blur-[2px]">
+                  <button onClick={() => triggerAutoDownload(asset.url, asset.id)} className="px-6 py-3 bg-white text-gray-900 rounded-2xl text-xs font-black hover:bg-gray-100 transition-all active:scale-95 shadow-2xl flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1h16v-1M4 12l8-8 8 8M12 4v12" /></svg>
                     DOWNLOAD
                   </button>
+                </div>
+              </div>
+
+              {/* Data Content */}
+              <div className="p-6 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Prompt Details</span>
+                  <span className="text-[10px] text-gray-400 font-medium">{new Date(asset.timestamp).toLocaleDateString()}</span>
+                </div>
+                <p className="text-gray-700 text-xs font-normal line-clamp-4 leading-relaxed tracking-tight group-hover:text-gray-900 transition-colors">
+                  {asset.prompt}
+                </p>
+                <div className="pt-2 flex flex-wrap gap-2 opacity-40 group-hover:opacity-100 transition-opacity">
+                   <div className="px-2 py-1 bg-gray-50 rounded-md text-[9px] font-bold text-gray-500">#{asset.config?.aspectRatio?.replace(':','x') || '1x1'}</div>
+                   <div className="px-2 py-1 bg-gray-50 rounded-md text-[9px] font-bold text-gray-500">#{asset.config?.quality || 'std'}</div>
+                   <div className="px-2 py-1 bg-gray-50 rounded-md text-[9px] font-bold text-gray-500">#{asset.config?.imageSize || '1K'}</div>
                 </div>
               </div>
             </div>
           ))}
           
           {archive.length === 0 && (
-            <div className="col-span-full h-64 flex flex-col items-center justify-center border-4 border-dashed border-gray-100 rounded-[32px] text-gray-200">
-              <svg className="w-12 h-12 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-              <p className="font-black text-xs uppercase tracking-[0.3em]">No creative assets yet</p>
+            <div className="col-span-full h-80 flex flex-col items-center justify-center border-4 border-dashed border-gray-100 rounded-[40px] text-gray-200">
+              <svg className="w-16 h-16 mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              <p className="font-black text-sm uppercase tracking-[0.4em]">No creative assets yet</p>
+              <p className="text-xs text-gray-300 mt-2 font-medium">Your generated masterpieces will appear here</p>
             </div>
           )}
         </div>

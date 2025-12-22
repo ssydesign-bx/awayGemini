@@ -122,7 +122,7 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ onKeyNeeded, hasKey, ar
             onChange={(e) => setPrompt(e.target.value)}
             onPaste={handlePaste}
             placeholder="Add motion prompt or drop images to animate (Up to 3)..."
-            className="w-full bg-gray-50 border border-transparent rounded-2xl px-6 py-4 text-base focus:outline-none focus:bg-white focus:border-gray-100 transition-all resize-none h-32 font-medium"
+            className="w-full bg-gray-50 border border-transparent rounded-2xl px-6 py-4 text-base focus:outline-none focus:bg-white focus:border-gray-100 transition-all resize-none h-32 font-normal"
           />
         </div>
 
@@ -151,7 +151,6 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ onKeyNeeded, hasKey, ar
           onChange={(e) => {
             const files = e.target.files;
             if (files) {
-              // Fix: Explicitly type 'f' as 'File' to resolve 'unknown' to 'File' assignment error
               Array.from(files).forEach((f: File) => processFile(f));
             }
             e.target.value = '';
@@ -170,7 +169,7 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ onKeyNeeded, hasKey, ar
             <div key={asset.id} className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-all">
               <video src={asset.url} className="w-full aspect-video object-cover" controls loop muted />
               <div className="p-5">
-                <p className="text-gray-800 text-sm font-medium leading-relaxed italic">"{asset.prompt}"</p>
+                <p className="text-gray-800 text-sm font-normal leading-relaxed italic">"{asset.prompt}"</p>
               </div>
             </div>
           ))}
