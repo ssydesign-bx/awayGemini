@@ -17,6 +17,7 @@ const ImageGenerator: React.FC<ImageGeneratorProps> = ({ onKeyNeeded, hasKey, ar
   const [statusMsg, setStatusMsg] = useState('');
   const [attachedImages, setAttachedImages] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [config, setConfig] = useState<ImageConfig>({
     quality: 'high',
     aspectRatio: '1:1',
@@ -101,6 +102,12 @@ const ImageGenerator: React.FC<ImageGeneratorProps> = ({ onKeyNeeded, hasKey, ar
     } catch (e) {
       console.warn("Auto-download failed");
     }
+  };
+
+  const handleCopyPrompt = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   const removeImage = (index: number) => {
@@ -313,7 +320,7 @@ const ImageGenerator: React.FC<ImageGeneratorProps> = ({ onKeyNeeded, hasKey, ar
         
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 pb-20">
           {archive.map((asset) => (
-            <div key={asset.id} className="group bg-white rounded-[32px] border border-gray-100 overflow-hidden shadow-sm hover:shadow-2xl hover:-translate-y-1 transition-all duration-500">
+            <div key={asset.id} className="group bg-white rounded-[32px] border border-gray-100 overflow-hidden shadow-sm hover:shadow-2xl hover:-translate-y-1 transition-all duration-500 flex flex-col">
               {/* Image Container */}
               <div className="aspect-square relative overflow-hidden bg-gray-50 border-b border-gray-50">
                 <img src={asset.url} alt={asset.prompt} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" />
@@ -343,14 +350,32 @@ const ImageGenerator: React.FC<ImageGeneratorProps> = ({ onKeyNeeded, hasKey, ar
               </div>
 
               {/* Data Content */}
-              <div className="p-6 space-y-3">
+              <div className="p-6 space-y-4 flex-1 flex flex-col">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Prompt Details</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Prompt Details</span>
+                    <button 
+                      onClick={() => handleCopyPrompt(asset.prompt, asset.id)}
+                      className={`p-1.5 rounded-lg transition-all ${copiedId === asset.id ? 'bg-lime-50 text-lime-600' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-900'}`}
+                      title="Copy Prompt"
+                    >
+                      {copiedId === asset.id ? (
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                      ) : (
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
+                      )}
+                    </button>
+                  </div>
                   <span className="text-[10px] text-gray-400 font-medium">{new Date(asset.timestamp).toLocaleDateString()}</span>
                 </div>
-                <p className="text-gray-700 text-xs font-normal line-clamp-4 leading-relaxed tracking-tight group-hover:text-gray-900 transition-colors">
-                  {asset.prompt}
-                </p>
+                
+                {/* Prompt Text - No Clamp, Full Show */}
+                <div className="flex-1">
+                  <p className="text-gray-700 text-xs font-normal leading-relaxed tracking-tight group-hover:text-gray-900 transition-colors whitespace-pre-wrap break-words">
+                    {asset.prompt}
+                  </p>
+                </div>
+
                 <div className="pt-2 flex flex-wrap gap-2 opacity-40 group-hover:opacity-100 transition-opacity">
                    <div className="px-2 py-1 bg-gray-50 rounded-md text-[9px] font-bold text-gray-500">#{asset.config?.aspectRatio?.replace(':','x') || '1x1'}</div>
                    <div className="px-2 py-1 bg-gray-50 rounded-md text-[9px] font-bold text-gray-500">#{asset.config?.quality || 'std'}</div>
