@@ -13,9 +13,24 @@ export class GeminiService {
     return new GoogleGenAI({ apiKey: this.getResolvedKey() });
   }
 
+  private static extractWaitTime(message: string): string | null {
+    // "in 15s", "in 2m 5s", "after 10:30 PM" 등의 패턴 추출
+    const inPattern = /in\s+(\d+h\s*)?(\d+m\s*)?(\d+s)/i;
+    const afterPattern = /after\s+(\d{1,2}:\d{2}\s*(?:AM|PM)?)/i;
+    
+    const inMatch = message.match(inPattern);
+    if (inMatch) return inMatch[0];
+    
+    const afterMatch = message.match(afterPattern);
+    if (afterMatch) return afterMatch[0];
+    
+    return null;
+  }
+
   private static handleError(error: any): never {
-    const errStr = error.message?.toLowerCase() || "";
     const rawMessage = error.message || "Unknown error";
+    const errStr = rawMessage.toLowerCase();
+    const waitTime = this.extractWaitTime(rawMessage);
     
     if (errStr.includes("requested entity was not found")) {
       window.dispatchEvent(new CustomEvent('gemini-key-reset'));
@@ -27,14 +42,14 @@ export class GeminiService {
     }
 
     if (errStr.includes("exhausted") || errStr.includes("429") || errStr.includes("quota")) {
-      throw new Error("QUOTA_EXCEEDED");
+      const timeInfo = waitTime ? ` (${waitTime})` : "";
+      throw new Error(`QUOTA_EXCEEDED${timeInfo}`);
     }
 
     if (errStr.includes("internal") || errStr.includes("500") || errStr.includes("overloaded")) {
       throw new Error("API_SERVER_ERROR");
     }
     
-    // 패턴에 매칭되지 않으면 원본 메시지를 포함하여 던짐
     throw new Error(`SYSTEM_ERROR: ${rawMessage}`);
   }
 
@@ -77,7 +92,7 @@ export class GeminiService {
     }
   }
 
-  static async generateImage(prompt: string, config: ImageConfig, imageDatas?: string[]): Promise<string> {
+  static async generateImage(prompt: string, config: ImageConfig, imageDatas?: string[], retryCount = 0): Promise<string> {
     const ai = this.createClient();
     const model = config.quality === 'high' ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
     
@@ -96,8 +111,6 @@ export class GeminiService {
     }
 
     try {
-      // 고해상도(2K, 4K) 생성 시 안정성을 위해 검색 도구(google_search)를 제외하고 시도합니다.
-      // 1K 생성이나 특정 뉴스 관련 프롬프트가 아닐 경우 검색 도구는 내부적으로 500 에러를 유발할 수 있습니다.
       const response = await ai.models.generateContent({
         model,
         contents: { parts },
@@ -106,7 +119,6 @@ export class GeminiService {
             aspectRatio: config.aspectRatio,
             ...(config.quality === 'high' && { imageSize: config.imageSize })
           }
-          // tools: [{ google_search: {} }] 를 명시적으로 제외하여 생성 안정성 확보
         }
       });
 
@@ -114,9 +126,7 @@ export class GeminiService {
       if (!candidate) throw new Error("NO_CANDIDATES_RETURNED");
       
       const content = candidate.content;
-      if (!content || !content.parts || !Array.isArray(content.parts)) {
-        throw new Error("GENERATION_BLOCKED_OR_EMPTY");
-      }
+      if (!content || !content.parts) throw new Error("GENERATION_BLOCKED_OR_EMPTY");
 
       for (const part of content.parts) {
         if (part.inlineData) {
@@ -126,6 +136,11 @@ export class GeminiService {
       
       throw new Error("IMAGE_DATA_NOT_FOUND");
     } catch (error: any) {
+      if (retryCount < 1 && (error.message?.includes("500") || error.message?.includes("internal"))) {
+        console.warn(`Attempting auto-retry for 500 error...`);
+        await new Promise(r => setTimeout(r, 2000));
+        return this.generateImage(prompt, config, imageDatas, retryCount + 1);
+      }
       this.handleError(error);
     }
   }

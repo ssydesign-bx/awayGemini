@@ -34,7 +34,7 @@ const ImageGenerator: React.FC<ImageGeneratorProps> = ({ onKeyNeeded, hasKey, ar
         setProgress(prev => {
           if (prev < 40) { setStatusMsg("Analyzing prompt..."); return prev + 3; }
           if (prev < 75) { setStatusMsg("Rendering details..."); return prev + 2; }
-          if (prev < 95) { setStatusMsg("Finalizing..."); return prev + 0.5; }
+          if (prev < 95) { setStatusMsg(config.imageSize !== '1K' ? "Stabilizing Hi-Res (Wait)..." : "Finalizing..."); return prev + 0.5; }
           return prev;
         });
       }, 200);
@@ -43,7 +43,7 @@ const ImageGenerator: React.FC<ImageGeneratorProps> = ({ onKeyNeeded, hasKey, ar
       clearInterval(interval);
     }
     return () => clearInterval(interval);
-  }, [isLoading]);
+  }, [isLoading, config.imageSize]);
 
   const processFile = (file: File) => {
     if (!file.type.startsWith('image/')) return;
@@ -144,19 +144,19 @@ const ImageGenerator: React.FC<ImageGeneratorProps> = ({ onKeyNeeded, hasKey, ar
       const msg = error.message || "";
 
       if (msg === "PAID_PROJECT_REQUIRED") {
-        alert("Error: This high-res model requires a Paid Google Cloud Project API Key.");
+        alert("Paid Key Required: 2K/4K resolution requires a Gemini API key from a Paid Billing Project.");
       } else if (msg === "RESELECT_KEY_REQUIRED" || msg === "AUTH_REQUIRED") {
         onKeyNeeded();
-      } else if (msg === "QUOTA_EXCEEDED") {
-        alert("Quota Limit: You've reached the rate limit for high-resolution images. Please wait a minute and try again.");
+      } else if (msg.startsWith("QUOTA_EXCEEDED")) {
+        const timeDetail = msg.includes("(") ? msg.match(/\((.*?)\)/)?.[1] : null;
+        const displayTime = timeDetail ? ` [${timeDetail}]` : "";
+        alert(`Rate Limit Reached: Your API quota for high-res images has been exhausted.${displayTime}\n\nPlease wait a moment and try again.`);
       } else if (msg === "API_SERVER_ERROR") {
-        alert("Server Busy: Google's high-res image engine is temporarily overloaded. This often happens with 2K/4K requests. Please try clicking 'Generate' again.");
-      } else if (msg === "GENERATION_BLOCKED_OR_EMPTY") {
-        alert("Safety Filter: The prompt or generated content was blocked. Try a different description.");
+        alert("Server Busy: Google's 2K/4K engine is currently overloaded. This is common during peak times. Please try again in 10-20 seconds or use 1K for immediate results.");
       } else if (msg.startsWith("SYSTEM_ERROR:")) {
-        alert(`AI Error: ${msg.replace("SYSTEM_ERROR: ", "")}\n\nHint: 2K/4K generation can be unstable in preview. Try again or switch to 1K.`);
+        alert(`Engine Error: ${msg.replace("SYSTEM_ERROR: ", "")}\n\nNote: 2K/4K resolution is very resource-intensive for Google's servers and may fail unexpectedly. Switching to 1K is recommended if this persists.`);
       } else {
-        alert("An unexpected error occurred. If this persists with 2K/4K, try generating at 1K first.");
+        alert("An unexpected error occurred. Hi-res generation can be unstable; please try 1K if you keep seeing this.");
       }
     } finally {
       setTimeout(() => {
@@ -222,7 +222,7 @@ const ImageGenerator: React.FC<ImageGeneratorProps> = ({ onKeyNeeded, hasKey, ar
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 onPaste={handlePaste}
-                placeholder="Describe your creative vision in detail... Paste images or drag files here to use as reference."
+                placeholder="Describe your creative vision in detail... 2K/4K resolution is experimental and may require retries."
                 className="w-full bg-gray-50 border-2 border-transparent rounded-[24px] px-8 py-6 text-base focus:outline-none focus:bg-white focus:border-gray-200 transition-all resize-y min-h-[160px] font-normal leading-relaxed placeholder:text-gray-300"
               />
               
@@ -292,7 +292,10 @@ const ImageGenerator: React.FC<ImageGeneratorProps> = ({ onKeyNeeded, hasKey, ar
 
             {config.quality === 'high' && (
               <div className="space-y-4 animate-in fade-in duration-500">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1">Resolution (AI-Upscaled)</label>
+                <div className="flex justify-between items-center ml-1">
+                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Resolution</label>
+                   {config.imageSize !== '1K' && <span className="text-[9px] font-black text-blue-500 animate-pulse uppercase tracking-tighter">PREVIEW STAGE</span>}
+                </div>
                 <div className="grid grid-cols-3 gap-3">
                   {["1K", "2K", "4K"].map(sz => (
                     <button 
@@ -304,6 +307,11 @@ const ImageGenerator: React.FC<ImageGeneratorProps> = ({ onKeyNeeded, hasKey, ar
                     </button>
                   ))}
                 </div>
+                {config.imageSize !== '1K' && (
+                  <p className="text-[9px] text-gray-400 font-medium px-2 leading-tight">
+                    * Hi-res models have strict quotas. If it fails, the system will tell you exactly how long to wait.
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -318,7 +326,7 @@ const ImageGenerator: React.FC<ImageGeneratorProps> = ({ onKeyNeeded, hasKey, ar
         />
       </div>
 
-      {/* Gallery (DB) Section */}
+      {/* Gallery Section */}
       <div className="flex-1 flex flex-col pt-4">
         <div className="flex items-center gap-4 mb-8 px-4">
           <h3 className="text-xs font-black text-gray-900 uppercase tracking-[0.3em]">Project Assets</h3>
@@ -329,11 +337,8 @@ const ImageGenerator: React.FC<ImageGeneratorProps> = ({ onKeyNeeded, hasKey, ar
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 pb-20">
           {archive.map((asset) => (
             <div key={asset.id} className="group bg-white rounded-[32px] border border-gray-100 overflow-hidden shadow-sm hover:shadow-2xl hover:-translate-y-1 transition-all duration-500 flex flex-col">
-              {/* Image Container */}
               <div className="aspect-square relative overflow-hidden bg-gray-50 border-b border-gray-50">
                 <img src={asset.url} alt={asset.prompt} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" />
-                
-                {/* Status Badges Overlay */}
                 <div className="absolute top-4 left-4 flex flex-col gap-2">
                   <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-tighter shadow-sm ${asset.config?.quality === 'high' ? 'bg-blue-600 text-white' : 'bg-gray-900 text-white'}`}>
                     {asset.config?.quality === 'high' ? 'PRO 3.0' : 'FLASH'}
@@ -343,12 +348,7 @@ const ImageGenerator: React.FC<ImageGeneratorProps> = ({ onKeyNeeded, hasKey, ar
                       {asset.config.imageSize} RES
                     </span>
                   )}
-                  <span className="bg-white/90 backdrop-blur px-2.5 py-1 rounded-lg text-[9px] font-black text-gray-900 uppercase tracking-tighter shadow-sm w-fit">
-                    {asset.config?.aspectRatio || '1:1'}
-                  </span>
                 </div>
-
-                {/* Hover Actions */}
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center backdrop-blur-[2px]">
                   <button onClick={() => triggerAutoDownload(asset.url, asset.id)} className="px-6 py-3 bg-white text-gray-900 rounded-2xl text-xs font-black hover:bg-gray-100 transition-all active:scale-95 shadow-2xl flex items-center gap-2">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1h16v-1M4 12l8-8 8 8M12 4v12" /></svg>
@@ -357,48 +357,21 @@ const ImageGenerator: React.FC<ImageGeneratorProps> = ({ onKeyNeeded, hasKey, ar
                 </div>
               </div>
 
-              {/* Data Content */}
               <div className="p-6 space-y-4 flex-1 flex flex-col">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Prompt Details</span>
-                    <button 
-                      onClick={() => handleCopyPrompt(asset.prompt, asset.id)}
-                      className={`p-1.5 rounded-lg transition-all ${copiedId === asset.id ? 'bg-lime-50 text-lime-600' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-900'}`}
-                      title="Copy Prompt"
-                    >
-                      {copiedId === asset.id ? (
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-                      ) : (
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
-                      )}
+                    <button onClick={() => handleCopyPrompt(asset.prompt, asset.id)} className={`p-1.5 rounded-lg transition-all ${copiedId === asset.id ? 'bg-lime-50 text-lime-600' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-900'}`}>
+                      {copiedId === asset.id ? <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg> : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>}
                     </button>
                   </div>
-                  <span className="text-[10px] text-gray-400 font-medium">{new Date(asset.timestamp).toLocaleDateString()}</span>
                 </div>
-                
                 <div className="flex-1">
-                  <p className="text-gray-700 text-xs font-normal leading-relaxed tracking-tight group-hover:text-gray-900 transition-colors whitespace-pre-wrap break-words">
-                    {asset.prompt}
-                  </p>
-                </div>
-
-                <div className="pt-2 flex flex-wrap gap-2 opacity-40 group-hover:opacity-100 transition-opacity">
-                   <div className="px-2 py-1 bg-gray-50 rounded-md text-[9px] font-bold text-gray-500">#{asset.config?.aspectRatio?.replace(':','x') || '1x1'}</div>
-                   <div className="px-2 py-1 bg-gray-50 rounded-md text-[9px] font-bold text-gray-500">#{asset.config?.quality || 'std'}</div>
-                   <div className="px-2 py-1 bg-gray-50 rounded-md text-[9px] font-bold text-gray-500">#{asset.config?.imageSize || '1K'}</div>
+                  <p className="text-gray-700 text-xs font-normal leading-relaxed tracking-tight line-clamp-3">{asset.prompt}</p>
                 </div>
               </div>
             </div>
           ))}
-          
-          {archive.length === 0 && (
-            <div className="col-span-full h-80 flex flex-col items-center justify-center border-4 border-dashed border-gray-100 rounded-[40px] text-gray-200">
-              <svg className="w-16 h-16 mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-              <p className="font-black text-sm uppercase tracking-[0.4em]">No creative assets yet</p>
-              <p className="text-xs text-gray-300 mt-2 font-medium">Your generated masterpieces will appear here</p>
-            </div>
-          )}
         </div>
       </div>
     </div>
