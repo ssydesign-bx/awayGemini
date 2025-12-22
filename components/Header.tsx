@@ -27,7 +27,7 @@ const Header: React.FC<HeaderProps> = ({ onSelectKey, hasKey }) => {
           hasKey ? 'bg-lime-50 text-lime-700' : 'bg-amber-50 text-amber-700'
         }`}>
           <div className={`w-2 h-2 rounded-full ${hasKey ? 'bg-lime-500 shadow-[0_0_8px_rgba(132,204,22,0.6)]' : 'bg-amber-500 animate-pulse'}`}></div>
-          {hasKey ? 'API KEY ACTIVE' : 'KEY REQUIRED'}
+          {hasKey ? 'PRO ENGINE ACTIVE' : 'BASIC MODE'}
         </div>
         
         <button 
@@ -38,7 +38,7 @@ const Header: React.FC<HeaderProps> = ({ onSelectKey, hasKey }) => {
               : 'bg-gray-900 text-white hover:bg-gray-800 shadow-gray-200'
           }`}
         >
-          {hasKey ? 'CHANGE KEY' : 'SELECT KEY'}
+          {hasKey ? 'KEY LINKED' : 'LINK PRO KEY'}
         </button>
       </div>
     </header>
