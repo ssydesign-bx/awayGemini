@@ -15,6 +15,7 @@ export class GeminiService {
 
   private static handleError(error: any): never {
     const errStr = error.message?.toLowerCase() || "";
+    const rawMessage = error.message || "Unknown error";
     
     if (errStr.includes("requested entity was not found")) {
       window.dispatchEvent(new CustomEvent('gemini-key-reset'));
@@ -25,11 +26,16 @@ export class GeminiService {
       throw new Error("PAID_PROJECT_REQUIRED");
     }
 
-    if (errStr.includes("internal") || errStr.includes("500")) {
+    if (errStr.includes("exhausted") || errStr.includes("429") || errStr.includes("quota")) {
+      throw new Error("QUOTA_EXCEEDED");
+    }
+
+    if (errStr.includes("internal") || errStr.includes("500") || errStr.includes("overloaded")) {
       throw new Error("API_SERVER_ERROR");
     }
     
-    throw error;
+    // 패턴에 매칭되지 않으면 원본 메시지를 포함하여 던짐
+    throw new Error(`SYSTEM_ERROR: ${rawMessage}`);
   }
 
   static async chat(message: string, history: { role: string, content: string }[], imageData?: string): Promise<{ text: string; grounding: any[]; }> {
@@ -90,7 +96,8 @@ export class GeminiService {
     }
 
     try {
-      // 이미지 모델(gemini-3-pro-image-preview)에서는 google_search 명칭을 사용하는 것이 권장됩니다.
+      // 고해상도(2K, 4K) 생성 시 안정성을 위해 검색 도구(google_search)를 제외하고 시도합니다.
+      // 1K 생성이나 특정 뉴스 관련 프롬프트가 아닐 경우 검색 도구는 내부적으로 500 에러를 유발할 수 있습니다.
       const response = await ai.models.generateContent({
         model,
         contents: { parts },
@@ -98,8 +105,8 @@ export class GeminiService {
           imageConfig: {
             aspectRatio: config.aspectRatio,
             ...(config.quality === 'high' && { imageSize: config.imageSize })
-          },
-          ...(config.quality === 'high' && { tools: [{ google_search: {} }] })
+          }
+          // tools: [{ google_search: {} }] 를 명시적으로 제외하여 생성 안정성 확보
         }
       });
 

@@ -141,16 +141,22 @@ const ImageGenerator: React.FC<ImageGeneratorProps> = ({ onKeyNeeded, hasKey, ar
       
     } catch (error: any) {
       console.error("Generator Error:", error);
-      if (error.message === "PAID_PROJECT_REQUIRED") {
-        alert("Error: This model requires a Paid Google Cloud Project API Key.");
-      } else if (error.message === "RESELECT_KEY_REQUIRED" || error.message === "AUTH_REQUIRED") {
+      const msg = error.message || "";
+
+      if (msg === "PAID_PROJECT_REQUIRED") {
+        alert("Error: This high-res model requires a Paid Google Cloud Project API Key.");
+      } else if (msg === "RESELECT_KEY_REQUIRED" || msg === "AUTH_REQUIRED") {
         onKeyNeeded();
-      } else if (error.message === "API_SERVER_ERROR") {
-        alert("Server Error (500): Google's API server is temporarily busy. Please try clicking 'Generate' again in a moment.");
-      } else if (error.message === "GENERATION_BLOCKED_OR_EMPTY") {
-        alert("Generation was blocked by safety filters. Please try a different or more descriptive prompt.");
+      } else if (msg === "QUOTA_EXCEEDED") {
+        alert("Quota Limit: You've reached the rate limit for high-resolution images. Please wait a minute and try again.");
+      } else if (msg === "API_SERVER_ERROR") {
+        alert("Server Busy: Google's high-res image engine is temporarily overloaded. This often happens with 2K/4K requests. Please try clicking 'Generate' again.");
+      } else if (msg === "GENERATION_BLOCKED_OR_EMPTY") {
+        alert("Safety Filter: The prompt or generated content was blocked. Try a different description.");
+      } else if (msg.startsWith("SYSTEM_ERROR:")) {
+        alert(`AI Error: ${msg.replace("SYSTEM_ERROR: ", "")}\n\nHint: 2K/4K generation can be unstable in preview. Try again or switch to 1K.`);
       } else {
-        alert("An unexpected error occurred. Please try again or check your API key status.");
+        alert("An unexpected error occurred. If this persists with 2K/4K, try generating at 1K first.");
       }
     } finally {
       setTimeout(() => {
